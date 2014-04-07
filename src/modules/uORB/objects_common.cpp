@@ -199,3 +199,7 @@ ORB_DEFINE(encoders, struct encoders_s);
 
 #include "topics/estimator_status.h"
 ORB_DEFINE(estimator_status, struct estimator_status_report);
+
+#include "topics/send_command.h"
+ORB_DEFINE(send_command, struct send_command_s);
+

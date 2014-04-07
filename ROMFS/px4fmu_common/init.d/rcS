@@ -392,6 +392,8 @@ then
 			fi
 		fi
 	fi
+
+	fmu mode_gpio
 	
 	#
 	# MAVLink

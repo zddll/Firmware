@@ -147,6 +147,9 @@ MODULES		+= examples/px4_simple_app
 # Hardware test
 #MODULES			+= examples/hwtest
 
+#Airdog module
+MODULES			+= modules/airdog
+
 #
 # Transitional support - add commands from the NuttX export archive.
 #
