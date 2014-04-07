@@ -1353,7 +1353,6 @@ protected:
 	{
 		if (command_sub->update(t)) {
 			mavlink_msg_command_long_send(_channel,
-							  cmd->timestamp / 1000,
 							  cmd->target_system,
 							  cmd->target_component,
 							  cmd->command,

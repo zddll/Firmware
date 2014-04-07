@@ -124,8 +124,6 @@ struct send_command_s
 	enum SEND_CMD command;		/**< Command ID, as defined MAVLink by SEND_CMD enum.   */
 	uint8_t target_system;		/**< System which should execute the command  */
 	uint8_t target_component;	/**< Component which should execute the command, 0 for all components  */
-	uint8_t source_system;		/**< System sending the command  */
-	uint8_t source_component;	/**< Component sending the command  */
 	uint8_t confirmation;		/**< 0: First transmission of this command. 1-255: Confirmation transmissions (e.g. for kill command) */
 }; /**< command sent to vehicle */
 
