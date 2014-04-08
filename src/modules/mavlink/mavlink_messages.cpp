@@ -70,8 +70,6 @@
 #include <uORB/topics/airspeed.h>
 #include <uORB/topics/battery_status.h>
 #include <uORB/topics/navigation_capabilities.h>
-#include <uORB/topics/send_command.h>
-#include <uORB/topics/set_mode.h>
 #include <drivers/drv_rc_input.h>
 #include <drivers/drv_pwm_output.h>
 
@@ -1331,84 +1329,6 @@ protected:
 	}
 };
 
-class MavlinkStreamCommandLong : public MavlinkStream
-{
-public:
-	const char *get_name()
-	{
-		return "COMMAND_LONG";
-	}
-
-	MavlinkStream *new_instance()
-	{
-		return new MavlinkStreamCommandLong();
-	}
-
-private:
-	MavlinkOrbSubscription *command_sub;
-	struct send_command_s *cmd;
-
-protected:
-	void subscribe(Mavlink *mavlink)
-	{
-		command_sub = mavlink->add_orb_subscription(ORB_ID(send_command));
-		cmd = (struct send_command_s *)command_sub->get_data();
-
-
-	}
-
-	void send(const hrt_abstime t)
-	{
-		if (command_sub->update(t)) {
-			mavlink_msg_command_long_send(_channel,
-							  cmd->target_system,
-							  cmd->target_component,
-							  cmd->command,
-							  cmd->confirmation,
-							  cmd->param1,
-							  cmd->param2,
-							  cmd->param3,
-							  cmd->param4,
-							  cmd->param5,
-							  cmd->param6,
-							  cmd->param7);
-		}
-	}
-};
-
-class MavlinkStreamSetMode : public MavlinkStream
-{
-public:
-	const char *get_name()
-	{
-		return "SET_MODE";
-	}
-
-	MavlinkStream *new_instance()
-	{
-		return new MavlinkStreamSetMode();
-	}
-
-private:
-	MavlinkOrbSubscription *command_sub;
-	struct send_command_s *cmd;
-
-protected:
-	void subscribe(Mavlink *mavlink)
-	{
-		command_sub = mavlink->add_orb_subscription(ORB_ID(set_mode));
-		cmd = (struct send_command_s *)command_sub->get_data();
-
-
-	}
-
-	void send(const hrt_abstime t)
-	{
-		if (command_sub->update(t)) {
-		}
-	}
-};
-
 MavlinkStream *streams_list[] = {
 	new MavlinkStreamHeartbeat(),
 	new MavlinkStreamSysStatus(),
@@ -1436,6 +1356,5 @@ MavlinkStream *streams_list[] = {
 	new MavlinkStreamAttitudeControls(),
 	new MavlinkStreamNamedValueFloat(),
 	new MavlinkStreamCameraCapture(),
-	new MavlinkStreamCommandLong(),
 	nullptr
 };
