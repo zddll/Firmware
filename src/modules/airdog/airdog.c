@@ -6,17 +6,43 @@
 #include <string.h>
 #include <errno.h>
 
+
 #include <systemlib/systemlib.h>
 #include <systemlib/err.h>
 #include <uORB/topics/send_command.h>
+#include <uORB/topics/set_mode.h>
 #include <uORB/topics/debug_key_value.h>
 
 #include <drivers/drv_gpio.h>
+#include <commander/px4_custom_mode.h>
+
+enum REMOTE_BUTTONS {
+	REMOTE_BUTTON_START_PAUSE=1,
+	REMOTE_BUTTON_TAKEOFF_LAND=2,
+};
+
+enum REMOTE_BUTTON_STATE {
+	PAUSE=1,
+	START=2,
+};
+
+enum MAV_MODE_FLAG {
+	MAV_MODE_FLAG_CUSTOM_MODE_ENABLED = 1, /* 0b00000001 Reserved for future use. | */
+	MAV_MODE_FLAG_TEST_ENABLED = 2, /* 0b00000010 system has a test mode enabled. This flag is intended for temporary system tests and should not be used for stable implementations. | */
+	MAV_MODE_FLAG_AUTO_ENABLED = 4, /* 0b00000100 autonomous mode enabled, system finds its own goal positions. Guided flag can be set or not, depends on the actual implementation. | */
+	MAV_MODE_FLAG_GUIDED_ENABLED = 8, /* 0b00001000 guided mode enabled, system flies MISSIONs / mission items. | */
+	MAV_MODE_FLAG_STABILIZE_ENABLED = 16, /* 0b00010000 system stabilizes electronically its attitude (and optionally position). It needs however further control inputs to move around. | */
+	MAV_MODE_FLAG_HIL_ENABLED = 32, /* 0b00100000 hardware in the loop simulation. All motors / actuators are blocked, but internal software is full operational. | */
+	MAV_MODE_FLAG_MANUAL_INPUT_ENABLED = 64, /* 0b01000000 remote control input is enabled. | */
+	MAV_MODE_FLAG_SAFETY_ARMED = 128, /* 0b10000000 MAV safety set to armed. Motors are enabled / running / can start. Ready to fly. | */
+	MAV_MODE_FLAG_ENUM_END = 129, /*  | */
+};
 
 struct gpio_button_s {
-	char name;
+	enum REMOTE_BUTTONS type;
+	enum REMOTE_BUTTON_STATE state;
 	int pin;
-	bool button_state;
+	bool button_pressed;
 };
 
 static bool thread_should_exit = false;		/**< daemon exit flag */
@@ -29,6 +55,8 @@ __EXPORT int airdog_main(int argc, char *argv[]);
  * Mainloop of daemon.
  */
 int px4_daemon_thread_main(int argc, char *argv[]);
+
+bool send_remote_command(struct gpio_button_s *button);
 
 /**
  * Print the correct usage.
@@ -84,26 +112,57 @@ int airdog_main(int argc, char *argv[])
 	exit(1);
 }
 
+bool send_remote_command(struct gpio_button_s *button)
+{
+	
+	struct send_command_s cmd;
+	cmd.param1 = 0;
+	cmd.param2 = 0;
+	cmd.param3 = 0;
+	cmd.param4 = 0;
+	cmd.param5 = 0;
+	cmd.param6 = 0;
+	cmd.param7 = 0;
+	cmd.command = SEND_CMD_DO_SET_MODE;
+	cmd.confirmation =  1;
+
+	struct set_mode_s cmd2;
+	cmd2.base_mode = 0;
+	cmd2.custom_mode = 0;
+	cmd2.target_system = 0;
+
+	orb_advert_t pub_dbg = orb_advertise(ORB_ID(send_command), &cmd);
+	orb_advert_t pub_dbg2 = orb_advertise(ORB_ID(set_mode), &cmd2);
+
+	switch(button->type){
+		case REMOTE_BUTTON_START_PAUSE: {
+			if (button->state == START){
+				cmd.param1 = MAV_MODE_FLAG_SAFETY_ARMED;
+				cmd.param2 = PX4_CUSTOM_MAIN_MODE_EASY;
+				orb_publish(ORB_ID(send_command), pub_dbg, &cmd);
+				button->state = PAUSE;
+			} else if (button->state == PAUSE){
+				cmd.param1 = MAV_MODE_FLAG_SAFETY_ARMED;
+				cmd.param2 = PX4_CUSTOM_MAIN_MODE_EASY;
+				orb_publish(ORB_ID(set_mode), pub_dbg2, &cmd2);
+				button->state = START;
+			}
+			
+			break;
+		}
+		case REMOTE_BUTTON_TAKEOFF_LAND: {
+			warnx("button 22 pressed");
+			break;
+		}
+	}
+	return true;
+}
 int px4_daemon_thread_main(int argc, char *argv[]) {
 
 	warnx("[daemon] starting\n");
 
 	thread_running = true;
-
-
-	struct send_command_s cmd;
-		cmd.param1 = 0;
-		cmd.param2 = 0;
-		cmd.param3 = 0;
-		cmd.param4 = 0;
-		cmd.param5 = 0;
-		cmd.param6 = 0;
-		cmd.param7 = 0;
-		cmd.command = SEND_CMD_NAV_LOITER_UNLIM;
-		cmd.confirmation =  1;
-
-
-	orb_advert_t pub_dbg = orb_advertise(ORB_ID(send_command), &cmd);
+	
 	
 
 	/* configure the GPIO */
@@ -113,8 +172,11 @@ int px4_daemon_thread_main(int argc, char *argv[]) {
 
 	button1.pin = 0;
 	button2.pin = 1;
-	button1.button_state = false;
-	button2.button_state = false;
+	button1.type = REMOTE_BUTTON_START_PAUSE;
+	button2.type = REMOTE_BUTTON_TAKEOFF_LAND;
+	button1.button_pressed = false;
+	button2.button_pressed = false;
+	button1.state = PAUSE;
 
 	int inputs = 3; //pin 1+2
 	int fd = open(PX4FMU_DEVICE_PATH, 0);
@@ -128,27 +190,28 @@ int px4_daemon_thread_main(int argc, char *argv[]) {
 		/*warnx("values: %u", gpio_values);*/
 
 		if (!(gpio_values & (1 << button1.pin))) {
-			if (button1.button_state == false){
+			if (button1.button_pressed == false){
 				warnx("button 1 pressed");
-				orb_publish(ORB_ID(send_command), pub_dbg, &cmd);
-				button1.button_state = true;
+				bool success = send_remote_command(&button1);
+				button1.button_pressed = true;
 			}
 		} else {
-			if (button1.button_state == true){
+			if (button1.button_pressed == true){
 				warnx("button 1 let go");
-				button1.button_state = false;
+				button1.button_pressed = false;
 			}
 		}
 
 		if (!(gpio_values & (1 << button2.pin))) {
-			if (button2.button_state == false){
+			if (button2.button_pressed == false){
 				warnx("button 2 pressed");
-				button2.button_state = true;
+				bool success = send_remote_command(&button2);
+				button2.button_pressed = true;
 			}
 		} else {
-			if (button2.button_state == true){
+			if (button2.button_pressed == true){
 				warnx("button 2 let go");
-				button2.button_state = false;
+				button2.button_pressed = false;
 			}
 		}
 		sleep(1);
