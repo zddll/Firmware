@@ -135,6 +135,10 @@ void get_mavlink_mode_state(struct vehicle_status_s *status, struct position_set
 			*mavlink_base_mode |= MAV_MODE_FLAG_AUTO_ENABLED | MAV_MODE_FLAG_STABILIZE_ENABLED | MAV_MODE_FLAG_GUIDED_ENABLED;
 			custom_mode.main_mode = PX4_CUSTOM_MAIN_MODE_AUTO;
 			custom_mode.sub_mode = PX4_CUSTOM_SUB_MODE_AUTO_READY;
+
+		} else if (status->main_state == MAIN_STATE_FOLLOW) {
+			*mavlink_base_mode |= MAV_MODE_FLAG_MANUAL_INPUT_ENABLED | MAV_MODE_FLAG_STABILIZE_ENABLED | MAV_MODE_FLAG_GUIDED_ENABLED;
+			custom_mode.main_mode = PX4_CUSTOM_MAIN_MODE_FOLLOW;
 		}
 
 	} else {
@@ -1308,8 +1312,6 @@ protected:
 	{
 		status_sub = mavlink->add_orb_subscription(ORB_ID(vehicle_status));
 		status = (struct vehicle_status_s *)status_sub->get_data();
-
-
 	}
 
 	void send(const hrt_abstime t)
