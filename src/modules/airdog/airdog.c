@@ -9,8 +9,7 @@
 
 #include <systemlib/systemlib.h>
 #include <systemlib/err.h>
-#include <uORB/topics/send_command.h>
-#include <uORB/topics/set_mode.h>
+#include <uORB/topics/vehicle_command.h>
 #include <uORB/topics/debug_key_value.h>
 
 #include <drivers/drv_gpio.h>
@@ -48,6 +47,7 @@ struct gpio_button_s {
 static bool thread_should_exit = false;		/**< daemon exit flag */
 static bool thread_running = false;		/**< daemon status flag */
 static int daemon_task;				/**< Handle of daemon task / thread */
+static orb_advert_t cmd_pub = -1;
 
 __EXPORT int airdog_main(int argc, char *argv[]);
 
@@ -57,6 +57,8 @@ __EXPORT int airdog_main(int argc, char *argv[]);
 int px4_daemon_thread_main(int argc, char *argv[]);
 
 bool send_remote_command(struct gpio_button_s *button);
+
+void send_set_mode(uint8_t base_mode, uint8_t custom_main_mode);
 
 /**
  * Print the correct usage.
@@ -114,59 +116,62 @@ int airdog_main(int argc, char *argv[])
 
 bool send_remote_command(struct gpio_button_s *button)
 {
-	
-	struct send_command_s cmd;
-	cmd.param1 = 0;
-	cmd.param2 = 0;
-	cmd.param3 = 0;
-	cmd.param4 = 0;
-	cmd.param5 = 0;
-	cmd.param6 = 0;
-	cmd.param7 = 0;
-	cmd.command = SEND_CMD_DO_SET_MODE;
-	cmd.confirmation =  1;
-
-	struct set_mode_s cmd2;
-	cmd2.base_mode = 0;
-	cmd2.custom_mode = 0;
-	cmd2.target_system = 0;
-
-	orb_advert_t pub_dbg = orb_advertise(ORB_ID(send_command), &cmd);
-	orb_advert_t pub_dbg2 = orb_advertise(ORB_ID(set_mode), &cmd2);
+	uint8_t base_mode = MAV_MODE_FLAG_SAFETY_ARMED | MAV_MODE_FLAG_CUSTOM_MODE_ENABLED;
 
 	switch(button->type){
-		case REMOTE_BUTTON_START_PAUSE: {
-			if (button->state == START){
-				cmd.param1 = MAV_MODE_FLAG_SAFETY_ARMED;
-				cmd.param2 = PX4_CUSTOM_MAIN_MODE_EASY;
-				orb_publish(ORB_ID(send_command), pub_dbg, &cmd);
-				button->state = PAUSE;
-			} else if (button->state == PAUSE){
-				cmd.param1 = MAV_MODE_FLAG_SAFETY_ARMED;
-				cmd.param2 = PX4_CUSTOM_MAIN_MODE_EASY;
-				orb_publish(ORB_ID(set_mode), pub_dbg2, &cmd2);
-				button->state = START;
-			}
-			
-			break;
+	case REMOTE_BUTTON_START_PAUSE: {
+		if (button->state == START){
+			send_set_mode(base_mode, PX4_CUSTOM_MAIN_MODE_FOLLOW);
+			button->state = PAUSE;
+
+		} else if (button->state == PAUSE){
+			send_set_mode(base_mode, PX4_CUSTOM_MAIN_MODE_EASY);
+			button->state = START;
 		}
-		case REMOTE_BUTTON_TAKEOFF_LAND: {
-			warnx("button 22 pressed");
-			break;
-		}
+
+		break;
 	}
+	case REMOTE_BUTTON_TAKEOFF_LAND: {
+		warnx("button 22 pressed");
+		break;
+	}
+	}
+
 	return true;
 }
+
+void send_set_mode(uint8_t base_mode, enum PX4_CUSTOM_MAIN_MODE custom_main_mode) {
+	/* TODO this is very ugly, need to rewrite app to C++ and use class fields instead of static var */
+	struct vehicle_command_s cmd;
+	memset(&cmd, 0, sizeof(cmd));
+
+	/* fill command */
+	cmd.command = VEHICLE_CMD_DO_SET_MODE;
+	cmd.confirmation = false;
+	cmd.param1 = base_mode;
+	cmd.param2 = custom_main_mode;
+	// TODO subscribe to vehicle_status topic and use values from it
+	cmd.source_system = 2;
+	cmd.source_component = 50;
+	// TODO add parameters AD_VEH_SYSID, AD_VEH_COMP to set target id
+	cmd.target_system = 1;
+	cmd.target_component = 50;
+
+	if (cmd_pub < 0) {
+		cmd_pub = orb_advertise(ORB_ID(vehicle_command), &cmd);
+
+	} else {
+		orb_publish(ORB_ID(vehicle_command), cmd_pub, &cmd);
+	}
+}
+
 int px4_daemon_thread_main(int argc, char *argv[]) {
 
 	warnx("[daemon] starting\n");
 
 	thread_running = true;
-	
-	
 
 	/* configure the GPIO */
-	
 	struct gpio_button_s button1;
 	struct gpio_button_s button2;
 
@@ -182,8 +187,9 @@ int px4_daemon_thread_main(int argc, char *argv[]) {
 	int fd = open(PX4FMU_DEVICE_PATH, 0);
 	ioctl(fd, GPIO_SET_INPUT, inputs);
 
-	while (!thread_should_exit) {
+	cmd_pub = -1;
 
+	while (!thread_should_exit) {
 		/* check the GPIO */
 		uint32_t gpio_values;
 		ioctl(fd, GPIO_GET, &gpio_values);
@@ -214,7 +220,7 @@ int px4_daemon_thread_main(int argc, char *argv[]) {
 				button2.button_pressed = false;
 			}
 		}
-		sleep(1);
+		sleep(10);
 	}
 
 	warnx("[daemon] exiting.\n");
