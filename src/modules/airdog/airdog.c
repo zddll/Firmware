@@ -10,6 +10,7 @@
 #include <systemlib/systemlib.h>
 #include <systemlib/err.h>
 #include <uORB/topics/vehicle_command.h>
+#include <uORB/topics/vehicle_status.h>
 #include <uORB/topics/debug_key_value.h>
 
 #include <drivers/drv_gpio.h>
@@ -120,19 +121,22 @@ bool send_remote_command(struct gpio_button_s *button)
 
 	switch(button->type){
 	case REMOTE_BUTTON_START_PAUSE: {
+
 		if (button->state == START){
-			send_set_mode(base_mode, PX4_CUSTOM_MAIN_MODE_FOLLOW);
+			send_set_mode(base_mode, PX4_CUSTOM_MAIN_MODE_EASY);
 			button->state = PAUSE;
 
 		} else if (button->state == PAUSE){
-			send_set_mode(base_mode, PX4_CUSTOM_MAIN_MODE_EASY);
+			send_set_mode(base_mode, PX4_CUSTOM_MAIN_MODE_FOLLOW);
 			button->state = START;
 		}
 
 		break;
 	}
 	case REMOTE_BUTTON_TAKEOFF_LAND: {
-		warnx("button 22 pressed");
+
+		send_set_mode(base_mode, PX4_CUSTOM_MAIN_MODE_EASY);
+
 		break;
 	}
 	}
@@ -145,14 +149,18 @@ void send_set_mode(uint8_t base_mode, enum PX4_CUSTOM_MAIN_MODE custom_main_mode
 	struct vehicle_command_s cmd;
 	memset(&cmd, 0, sizeof(cmd));
 
+	int state_sub = orb_subscribe(ORB_ID(vehicle_status));
+	struct vehicle_status_s state;
+	orb_copy(ORB_ID(vehicle_status), state_sub, &state);
+
 	/* fill command */
 	cmd.command = VEHICLE_CMD_DO_SET_MODE;
 	cmd.confirmation = false;
 	cmd.param1 = base_mode;
 	cmd.param2 = custom_main_mode;
 	// TODO subscribe to vehicle_status topic and use values from it
-	cmd.source_system = 2;
-	cmd.source_component = 50;
+	cmd.source_system = state.system_id;
+	cmd.source_component = state.component_id;
 	// TODO add parameters AD_VEH_SYSID, AD_VEH_COMP to set target id
 	cmd.target_system = 1;
 	cmd.target_component = 50;
@@ -220,7 +228,7 @@ int px4_daemon_thread_main(int argc, char *argv[]) {
 				button2.button_pressed = false;
 			}
 		}
-		sleep(10);
+		sleep(1);
 	}
 
 	warnx("[daemon] exiting.\n");

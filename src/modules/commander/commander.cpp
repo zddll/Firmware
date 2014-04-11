@@ -1281,7 +1281,17 @@ int commander_thread_main(int argc, char *argv[])
 			}
 
 			/* evaluate the main state machine according to mode switches */
-			res = set_main_state_rc(&status, &sp_man);
+			/* MYHACK mission switch disables RC switches for remote follow buttons.
+			also turns on camera follow in EASY mode*/
+			if (sp_man.mission_switch != SWITCH_POS_ON)
+			{
+				res = set_main_state_rc(&status, &sp_man);
+			} else {
+				if (status.main_state == MAIN_STATE_EASY)
+				{
+					control_mode.flag_point_to_target = true;
+				}
+			}
 
 			/* play tune on mode change only if armed, blink LED always */
 			if (res == TRANSITION_CHANGED) {
