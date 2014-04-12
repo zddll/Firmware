@@ -153,6 +153,7 @@ static unsigned int leds_counter;
 static uint64_t last_print_mode_reject_time = 0;
 /* if connected via USB */
 static bool on_usb_power = false;
+static bool remote_mode = false;
 
 static float takeoff_alt = 5.0f;
 static int parachute_enabled = 0;
@@ -1286,11 +1287,9 @@ int commander_thread_main(int argc, char *argv[])
 			if (sp_man.mission_switch != SWITCH_POS_ON)
 			{
 				res = set_main_state_rc(&status, &sp_man);
+				remote_mode = false;
 			} else {
-				if (status.main_state == MAIN_STATE_EASY)
-				{
-					control_mode.flag_point_to_target = true;
-				}
+				remote_mode = true;
 			}
 
 			/* play tune on mode change only if armed, blink LED always */
@@ -1747,6 +1746,7 @@ set_control_mode()
 			control_mode.flag_control_climb_rate_enabled = true;
 			control_mode.flag_control_position_enabled = true;
 			control_mode.flag_control_velocity_enabled = true;
+			control_mode.flag_point_to_target = remote_mode;
 			break;
 
 		case MAIN_STATE_FOLLOW:
