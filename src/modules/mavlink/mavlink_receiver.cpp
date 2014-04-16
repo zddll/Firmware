@@ -154,6 +154,9 @@ MavlinkReceiver::handle_message(mavlink_message_t *msg)
 	case MAVLINK_MSG_ID_GLOBAL_POSITION_TIME:
 		handle_message_global_position_time(msg);
 		break;
+	case MAVLINK_MSG_ID_HEARTBEAT:
+		handle_message_airdog_heartbeat(msg);
+		break;
 
 	default:
 		break;
@@ -871,6 +874,30 @@ MavlinkReceiver::handle_message_hil_state_quaternion(mavlink_message_t *msg)
 
 		} else {
 			orb_publish(ORB_ID(battery_status), _battery_pub, &hil_battery_status);
+		}
+	}
+}
+
+void
+MavlinkReceiver::handle_message_airdog_heartbeat(mavlink_message_t *msg)
+{
+	if(msg->sysid == 1) { //SIMIS TODO get sysid from linked airdog
+		mavlink_heartbeat_t heartbeat;
+		mavlink_msg_heartbeat_decode(msg, &heartbeat);
+
+		struct airdog_status_s status;
+		memset(&status, 0, sizeof(status));
+
+		/*status.timestamp = hrt_absolute_time();*/
+		status.custom_mode = heartbeat.custom_mode;
+		status.base_mode = heartbeat.base_mode;
+		status.system_status = heartbeat.system_status;
+
+		if (_airdog_status_pub < 0) {
+			_airdog_status_pub = orb_advertise(ORB_ID(airdog_status), &status);
+
+		} else {
+			orb_publish(ORB_ID(airdog_status), _airdog_status_pub, &status);
 		}
 	}
 }

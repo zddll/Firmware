@@ -5,21 +5,18 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
-
+#include <nuttx/wqueue.h>
+#include <nuttx/clock.h>
 
 #include <systemlib/systemlib.h>
 #include <systemlib/err.h>
 #include <uORB/topics/vehicle_command.h>
 #include <uORB/topics/vehicle_status.h>
 #include <uORB/topics/debug_key_value.h>
+#include <uORB/topics/airdog_status.h>
 
 #include <drivers/drv_gpio.h>
 #include <commander/px4_custom_mode.h>
-
-enum REMOTE_BUTTONS {
-	REMOTE_BUTTON_START_PAUSE=1,
-	REMOTE_BUTTON_TAKEOFF_LAND=2,
-};
 
 enum REMOTE_BUTTON_STATE {
 	PAUSE=1,
@@ -39,15 +36,24 @@ enum MAV_MODE_FLAG {
 };
 
 struct gpio_button_s {
-	enum REMOTE_BUTTONS type;
 	enum REMOTE_BUTTON_STATE state;
 	int pin;
 	bool button_pressed;
 };
 
-static bool thread_should_exit = false;		/**< daemon exit flag */
-static bool thread_running = false;		/**< daemon status flag */
-static int daemon_task;				/**< Handle of daemon task / thread */
+struct airdog_app_s {
+	struct work_s work;
+	uint8_t base_mode;
+	int gpio_fd;
+	int inputs;
+	struct gpio_button_s follow_button;
+	struct airdog_status_s airdog_status;
+	int airdog_status_sub;
+	int current_custom_mode;
+};
+
+static struct airdog_app_s airdog_data;
+static bool airdog_running = false;
 static orb_advert_t cmd_pub = -1;
 
 __EXPORT int airdog_main(int argc, char *argv[]);
@@ -55,9 +61,8 @@ __EXPORT int airdog_main(int argc, char *argv[]);
 /**
  * Mainloop of daemon.
  */
-int px4_daemon_thread_main(int argc, char *argv[]);
-
-bool send_remote_command(struct gpio_button_s *button);
+void airdog_cycle(FAR void *arg);
+void airdog_start(FAR void *arg);
 
 void send_set_mode(uint8_t base_mode, uint8_t custom_main_mode);
 
@@ -81,29 +86,35 @@ int airdog_main(int argc, char *argv[])
 
 	if (!strcmp(argv[1], "start")) {
 
-		if (thread_running) {
-			warnx("airdog already running\n");
+		if (airdog_running) {
+			warnx("airdog remote app already running\n");
 			/* this is not an error */
 			exit(0);
 		}
 
-		thread_should_exit = false;
-		daemon_task = task_spawn_cmd("daemon",
-					 SCHED_DEFAULT,
-					 SCHED_PRIORITY_DEFAULT,
-					 4096,
-					 px4_daemon_thread_main,
-					 (argv) ? (const char **)&argv[2] : (const char **)NULL);
+		memset(&airdog_data, 0, sizeof(airdog_data));
+		int ret = work_queue(LPWORK, &airdog_data.work, airdog_start, &airdog_data, 0);
+
+		if (ret != 0) {
+			errx(1, "failed to queue work: %d", ret);
+		} else {
+			airdog_running = true;
+			warnx("airdog button listener starting\n");
+		}
 		exit(0);
 	}
 
 	if (!strcmp(argv[1], "stop")) {
-		thread_should_exit = true;
-		exit(0);
+		if (airdog_running) {
+				airdog_running = false;
+				warnx("stop");
+			} else {
+				errx(1, "not running");
+			}
 	}
 
 	if (!strcmp(argv[1], "status")) {
-		if (thread_running) {
+		if (airdog_running) {
 			warnx("\trunning\n");
 		} else {
 			warnx("\tnot started\n");
@@ -113,35 +124,6 @@ int airdog_main(int argc, char *argv[])
 
 	usage("unrecognized command");
 	exit(1);
-}
-
-bool send_remote_command(struct gpio_button_s *button)
-{
-	uint8_t base_mode = MAV_MODE_FLAG_SAFETY_ARMED | MAV_MODE_FLAG_CUSTOM_MODE_ENABLED;
-
-	switch(button->type){
-	case REMOTE_BUTTON_START_PAUSE: {
-
-		if (button->state == START){
-			send_set_mode(base_mode, PX4_CUSTOM_MAIN_MODE_EASY);
-			button->state = PAUSE;
-
-		} else if (button->state == PAUSE){
-			send_set_mode(base_mode, PX4_CUSTOM_MAIN_MODE_FOLLOW);
-			button->state = START;
-		}
-
-		break;
-	}
-	case REMOTE_BUTTON_TAKEOFF_LAND: {
-
-		send_set_mode(base_mode, PX4_CUSTOM_MAIN_MODE_EASY);
-
-		break;
-	}
-	}
-
-	return true;
 }
 
 void send_set_mode(uint8_t base_mode, enum PX4_CUSTOM_MAIN_MODE custom_main_mode) {
@@ -158,7 +140,6 @@ void send_set_mode(uint8_t base_mode, enum PX4_CUSTOM_MAIN_MODE custom_main_mode
 	cmd.confirmation = false;
 	cmd.param1 = base_mode;
 	cmd.param2 = custom_main_mode;
-	// TODO subscribe to vehicle_status topic and use values from it
 	cmd.source_system = state.system_id;
 	cmd.source_component = state.component_id;
 	// TODO add parameters AD_VEH_SYSID, AD_VEH_COMP to set target id
@@ -173,67 +154,94 @@ void send_set_mode(uint8_t base_mode, enum PX4_CUSTOM_MAIN_MODE custom_main_mode
 	}
 }
 
-int px4_daemon_thread_main(int argc, char *argv[]) {
+void airdog_start(FAR void *arg)
+{
+	FAR struct airdog_app_s *priv = (FAR struct airdog_app_s *)arg;
 
-	warnx("[daemon] starting\n");
-
-	thread_running = true;
-
-	/* configure the GPIO */
-	struct gpio_button_s button1;
-	struct gpio_button_s button2;
-
-	button1.pin = 0;
+	priv->base_mode = MAV_MODE_FLAG_SAFETY_ARMED | MAV_MODE_FLAG_CUSTOM_MODE_ENABLED;
+	priv->follow_button.pin = 0;
+	priv->follow_button.button_pressed = false;
+	priv->follow_button.state = PAUSE;
+/*
 	button2.pin = 1;
-	button1.type = REMOTE_BUTTON_START_PAUSE;
 	button2.type = REMOTE_BUTTON_TAKEOFF_LAND;
-	button1.button_pressed = false;
 	button2.button_pressed = false;
-	button1.state = PAUSE;
+*/
+	priv->inputs = priv->follow_button.pin + 1;
+	
 
-	int inputs = 3; //pin 1+2
-	int fd = open(PX4FMU_DEVICE_PATH, 0);
-	ioctl(fd, GPIO_SET_INPUT, inputs);
-
-	cmd_pub = -1;
-
-	while (!thread_should_exit) {
-		/* check the GPIO */
-		uint32_t gpio_values;
-		ioctl(fd, GPIO_GET, &gpio_values);
-		/*warnx("values: %u", gpio_values);*/
-
-		if (!(gpio_values & (1 << button1.pin))) {
-			if (button1.button_pressed == false){
-				warnx("button 1 pressed");
-				bool success = send_remote_command(&button1);
-				button1.button_pressed = true;
-			}
-		} else {
-			if (button1.button_pressed == true){
-				warnx("button 1 let go");
-				button1.button_pressed = false;
-			}
-		}
-
-		if (!(gpio_values & (1 << button2.pin))) {
-			if (button2.button_pressed == false){
-				warnx("button 2 pressed");
-				bool success = send_remote_command(&button2);
-				button2.button_pressed = true;
-			}
-		} else {
-			if (button2.button_pressed == true){
-				warnx("button 2 let go");
-				button2.button_pressed = false;
-			}
-		}
-		sleep(1);
+	/* open GPIO device */
+	priv->gpio_fd = open(PX4FMU_DEVICE_PATH, 0);
+	if (priv->gpio_fd < 0) {
+		// TODO find way to print errors
+		//printf("airdog: GPIO device \"%s\" open fail\n", PX4FMU_DEVICE_PATH);
+		airdog_running = false;
+		return;
 	}
+	ioctl(priv->gpio_fd, GPIO_SET_INPUT, priv->inputs);
 
-	warnx("[daemon] exiting.\n");
+	/* initialize vehicle status structure */
+	memset(&priv->airdog_status, 0, sizeof(priv->airdog_status));
 
-	thread_running = false;
+	/* subscribe to vehicle status topic */
+	priv->airdog_status_sub = orb_subscribe(ORB_ID(airdog_status));
 
-	return 0;
+	/* add worker to queue */
+	int ret = work_queue(LPWORK, &priv->work, airdog_cycle, priv, 0);
+
+	if (ret != 0) {
+		// TODO find way to print errors
+		//printf("gpio_led: failed to queue work: %d\n", ret);
+		airdog_running = false;
+		return;
+	}
+};
+
+void airdog_cycle(FAR void *arg) {
+
+	FAR struct airdog_app_s *priv = (FAR struct airdog_app_s *)arg;
+
+	bool updated;
+	orb_check(priv->airdog_status_sub, &updated);
+
+	if (updated) {
+		orb_copy(ORB_ID(airdog_status), priv->airdog_status_sub, &priv->airdog_status);
+	}
+	/*warnx("testing: %d", priv->airdog_status.custom_mode);*/
+	int custom_mode = priv->airdog_status.custom_mode >> 16;
+	
+
+	/* check the GPIO */
+	uint32_t gpio_values;
+	ioctl(priv->gpio_fd, GPIO_GET, &gpio_values);
+
+	if (!(gpio_values & (1 << priv->follow_button.pin))) {
+		if (priv->follow_button.button_pressed == false){
+			warnx("button 1 pressed %d", priv->current_custom_mode);
+
+			if (custom_mode == PX4_CUSTOM_MAIN_MODE_FOLLOW){
+				send_set_mode(priv->base_mode, PX4_CUSTOM_MAIN_MODE_EASY);
+
+			} else if (custom_mode == (PX4_CUSTOM_MAIN_MODE_EASY)){
+				send_set_mode(priv->base_mode, PX4_CUSTOM_MAIN_MODE_FOLLOW);
+
+			} else if (custom_mode == (PX4_CUSTOM_MAIN_MODE_SEATBELT)){
+				send_set_mode(priv->base_mode, PX4_CUSTOM_MAIN_MODE_FOLLOW);
+			}
+			priv->follow_button.button_pressed = true;
+		}
+	} else {
+		if (priv->follow_button.button_pressed == true){
+			warnx("button 1 let go");
+			priv->follow_button.button_pressed = false;
+		}
+	}
+	/* repeat cycle at 10 Hz */
+	if (airdog_running) {
+		work_queue(LPWORK, &priv->work, airdog_cycle, priv, USEC2TICK(100000));
+
+	} else {
+		/* switch off LED on stop */
+		ioctl(priv->gpio_fd, GPIO_CLEAR, priv->inputs);
+	}
 }

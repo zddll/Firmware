@@ -68,6 +68,7 @@
 #include <uORB/topics/debug_key_value.h>
 #include <uORB/topics/airspeed.h>
 #include <uORB/topics/battery_status.h>
+#include <uORB/topics/airdog_status.h>
 
 class Mavlink;
 
@@ -117,6 +118,7 @@ private:
 	void handle_message_hil_sensor(mavlink_message_t *msg);
 	void handle_message_hil_gps(mavlink_message_t *msg);
 	void handle_message_hil_state_quaternion(mavlink_message_t *msg);
+	void handle_message_airdog_heartbeat(mavlink_message_t *msg);
 
 	void *receive_thread(void *arg);
 
@@ -141,6 +143,7 @@ private:
 	orb_advert_t _rc_pub;
 	orb_advert_t _manual_pub;
 	orb_advert_t _target_pos_pub;
+	orb_advert_t _airdog_status_pub;
 	int _hil_frames;
 	uint64_t _old_timestamp;
 	bool _hil_local_proj_inited;
