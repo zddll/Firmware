@@ -1,12 +1,13 @@
 #include <nuttx/config.h>
 #include <nuttx/sched.h>
+#include <nuttx/wqueue.h>
+#include <nuttx/clock.h>
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
-#include <nuttx/wqueue.h>
-#include <nuttx/clock.h>
+#include <fcntl.h>
 
 #include <systemlib/systemlib.h>
 #include <systemlib/err.h>
@@ -212,8 +213,8 @@ void airdog_cycle(FAR void *arg) {
 	
 
 	/* check the GPIO */
-	uint32_t gpio_values;
-	ioctl(priv->gpio_fd, GPIO_GET, &gpio_values);
+	unsigned long gpio_values = 0;
+	ioctl(priv->gpio_fd, GPIO_GET, gpio_values);
 
 	if (!(gpio_values & (1 << priv->follow_button.pin))) {
 		if (priv->follow_button.button_pressed == false){
