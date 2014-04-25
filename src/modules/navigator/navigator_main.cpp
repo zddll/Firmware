@@ -186,6 +186,9 @@ private:
 	struct follow_offset_s	_follow_offset_prev;		/**< offset from target for previous "follow" waypoint */
 	struct follow_offset_s	_follow_offset_next;		/**< offset from target for next "follow" waypoint */
 
+	struct map_projection_reference_s _ref_pos;
+	math::Vector<3>  _afollow_offset;			/**< offset from target for AFOLLOW mode */
+
 	perf_counter_t	_loop_perf;			/**< loop performance counter */
 
 	Geofence					_geofence;
@@ -212,6 +215,8 @@ private:
 	uint64_t	_set_nav_state_timestamp;		/**< timestamp of last handled navigation state request */
 
 	bool		_pos_sp_triplet_updated;
+
+	bool _reset_afollow_offset;
 
 	const char *nav_states_str[NAV_STATE_MAX];
 
@@ -246,6 +251,7 @@ private:
 		EVENT_LAND_REQUESTED,
 		EVENT_MISSION_CHANGED,
 		EVENT_HOME_POSITION_CHANGED,
+		EVENT_AFOLLOW_REQUESTED,
 		MAX_EVENT
 	};
 
@@ -330,12 +336,19 @@ private:
 	void		start_rtl();
 	void		start_land();
 	void		start_land_home();
+	void		start_afollow();
 
 	/**
 	 * Fork for state transitions
 	 */
 	void		request_loiter_or_ready();
 	void		request_mission_if_available();
+	void		request_afollow();
+
+	/**
+	 * resets afollow terget offset
+	 */
+	void		reset_afollow_offset();
 
 	/**
 	 * Guards offboard mission
@@ -445,7 +458,8 @@ Navigator::Navigator() :
 	_roi_item_valid(false),
 	_target_lat(0.0),
 	_target_lon(0.0),
-	_target_alt(0.0f)
+	_target_alt(0.0f),
+	_reset_afollow_offset(true)
 {
 	_parameter_handles.min_altitude = param_find("NAV_MIN_ALT");
 	_parameter_handles.acceptance_radius = param_find("NAV_ACCEPT_RAD");
@@ -461,7 +475,9 @@ Navigator::Navigator() :
 	memset(&_roi_item, 0, sizeof(_roi_item));
 	memset(&_follow_offset_prev, 0, sizeof(_follow_offset_prev));
 	memset(&_follow_offset_next, 0, sizeof(_follow_offset_next));
+	memset(&_afollow_offset, 0, sizeof(_afollow_offset));
 	memset(&_target_pos, 0, sizeof(_target_pos));
+	memset(&_ref_pos, 0, sizeof(_ref_pos));
 
 	memset(&nav_states_str, 0, sizeof(nav_states_str));
 	nav_states_str[0] = "NONE";
@@ -470,6 +486,11 @@ Navigator::Navigator() :
 	nav_states_str[3] = "MISSION";
 	nav_states_str[4] = "RTL";
 	nav_states_str[5] = "LAND";
+	nav_states_str[6] = "AFOLLOW";
+
+	_afollow_offset.zero();
+	_afollow_offset(2) = -20.0f;
+
 
 	/* Initialize state machine */
 	myState = NAV_STATE_NONE;
@@ -676,6 +697,8 @@ Navigator::task_main()
 	hrt_abstime mavlink_open_time = 0;
 	const hrt_abstime mavlink_open_interval = 500000;
 
+	bool was_armed = false;
+
 	/* wakeup source(s) */
 	struct pollfd fds[9];
 
@@ -732,6 +755,13 @@ Navigator::task_main()
 		if (fds[6].revents & POLLIN) {
 			vehicle_status_update();
 
+			if (_control_mode.flag_armed && !was_armed) {
+				/* reset setpoints and integrals on arming */
+				_reset_afollow_offset = true;
+			}
+
+			was_armed = _control_mode.flag_armed;
+
 			/* evaluate state requested by commander */
 			if (_control_mode.flag_armed && _control_mode.flag_control_auto_enabled) {
 				if (_vstatus.set_nav_state_timestamp != _set_nav_state_timestamp) {
@@ -742,6 +772,7 @@ Navigator::task_main()
 						break;
 
 					case NAV_STATE_LOITER:
+						_reset_afollow_offset = true;
 						request_loiter_or_ready();
 						break;
 
@@ -760,7 +791,10 @@ Navigator::task_main()
 
 					case NAV_STATE_LAND:
 						dispatch(EVENT_LAND_REQUESTED);
+						break;
 
+					case NAV_STATE_AFOLLOW:
+						request_afollow();
 						break;
 
 					default:
@@ -972,6 +1006,10 @@ Navigator::status()
 		warnx("State: RTL");
 		break;
 
+	case NAV_STATE_AFOLLOW:
+		warnx("State: AFOLLOW");
+		break;
+
 	default:
 		warnx("State: Unknown");
 		break;
@@ -989,6 +1027,7 @@ StateTable::Tran const Navigator::myTable[NAV_STATE_MAX][MAX_EVENT] = {
 		/* EVENT_LAND_REQUESTED */		{ACTION(&Navigator::start_land), NAV_STATE_LAND},
 		/* EVENT_MISSION_CHANGED */		{NO_ACTION, NAV_STATE_NONE},
 		/* EVENT_HOME_POSITION_CHANGED */	{NO_ACTION, NAV_STATE_NONE},
+		/* EVENT_FOLLOW_REQUESTED */    {ACTION(&Navigator::start_afollow), NAV_STATE_AFOLLOW},
 	},
 	{
 		/* NAV_STATE_READY */
@@ -1000,6 +1039,7 @@ StateTable::Tran const Navigator::myTable[NAV_STATE_MAX][MAX_EVENT] = {
 		/* EVENT_LAND_REQUESTED */		{NO_ACTION, NAV_STATE_READY},
 		/* EVENT_MISSION_CHANGED */		{NO_ACTION, NAV_STATE_READY},
 		/* EVENT_HOME_POSITION_CHANGED */	{NO_ACTION, NAV_STATE_READY},
+		/* EVENT_FOLLOW_REQUESTED */    {ACTION(&Navigator::start_afollow), NAV_STATE_AFOLLOW},
 	},
 	{
 		/* NAV_STATE_LOITER */
@@ -1011,6 +1051,7 @@ StateTable::Tran const Navigator::myTable[NAV_STATE_MAX][MAX_EVENT] = {
 		/* EVENT_LAND_REQUESTED */		{ACTION(&Navigator::start_land), NAV_STATE_LAND},
 		/* EVENT_MISSION_CHANGED */		{NO_ACTION, NAV_STATE_LOITER},
 		/* EVENT_HOME_POSITION_CHANGED */	{NO_ACTION, NAV_STATE_LOITER},
+		/* EVENT_FOLLOW_REQUESTED */    {ACTION(&Navigator::start_afollow), NAV_STATE_AFOLLOW},
 	},
 	{
 		/* NAV_STATE_MISSION */
@@ -1022,6 +1063,7 @@ StateTable::Tran const Navigator::myTable[NAV_STATE_MAX][MAX_EVENT] = {
 		/* EVENT_LAND_REQUESTED */		{ACTION(&Navigator::start_land), NAV_STATE_LAND},
 		/* EVENT_MISSION_CHANGED */		{ACTION(&Navigator::start_mission), NAV_STATE_MISSION},
 		/* EVENT_HOME_POSITION_CHANGED */	{NO_ACTION, NAV_STATE_MISSION},
+		/* EVENT_FOLLOW_REQUESTED */    {ACTION(&Navigator::start_afollow), NAV_STATE_AFOLLOW},
 	},
 	{
 		/* NAV_STATE_RTL */
@@ -1033,6 +1075,7 @@ StateTable::Tran const Navigator::myTable[NAV_STATE_MAX][MAX_EVENT] = {
 		/* EVENT_LAND_REQUESTED */		{ACTION(&Navigator::start_land_home), NAV_STATE_LAND},
 		/* EVENT_MISSION_CHANGED */		{NO_ACTION, NAV_STATE_RTL},
 		/* EVENT_HOME_POSITION_CHANGED */	{ACTION(&Navigator::start_rtl), NAV_STATE_RTL},	// TODO need to reset rtl_state
+		/* EVENT_FOLLOW_REQUESTED */    {ACTION(&Navigator::start_afollow), NAV_STATE_AFOLLOW},
 	},
 	{
 		/* NAV_STATE_LAND */
@@ -1044,6 +1087,19 @@ StateTable::Tran const Navigator::myTable[NAV_STATE_MAX][MAX_EVENT] = {
 		/* EVENT_LAND_REQUESTED */		{NO_ACTION, NAV_STATE_LAND},
 		/* EVENT_MISSION_CHANGED */		{NO_ACTION, NAV_STATE_LAND},
 		/* EVENT_HOME_POSITION_CHANGED */	{NO_ACTION, NAV_STATE_LAND},
+		/* EVENT_FOLLOW_REQUESTED */    {NO_ACTION, NAV_STATE_LAND},
+	},
+	{
+		/* NAV_STATE_FOLLOW */
+		/* EVENT_NONE_REQUESTED */        {NO_ACTION, NAV_STATE_AFOLLOW},
+		/* EVENT_READY_REQUESTED */        {NO_ACTION, NAV_STATE_AFOLLOW},
+		/* EVENT_LOITER_REQUESTED */        {ACTION(&Navigator::start_loiter), NAV_STATE_LOITER},
+		/* EVENT_MISSION_REQUESTED */    {NO_ACTION, NAV_STATE_AFOLLOW},
+		/* EVENT_RTL_REQUESTED */        {ACTION(&Navigator::start_rtl), NAV_STATE_RTL},
+		/* EVENT_LAND_REQUESTED */        {ACTION(&Navigator::start_land_home), NAV_STATE_LAND},
+		/* EVENT_MISSION_CHANGED */        {NO_ACTION, NAV_STATE_AFOLLOW},
+		/* EVENT_HOME_POSITION_CHANGED */    {NO_ACTION, NAV_STATE_AFOLLOW},
+		/* EVENT_AFOLLOW_REQUESTED */    {NO_ACTION, NAV_STATE_AFOLLOW},
 	},
 };
 
@@ -1732,6 +1788,40 @@ Navigator::publish_position_setpoint_triplet()
 	/* update navigation state */
 	_pos_sp_triplet.nav_state = static_cast<nav_state_t>(myState);
 
+	if (myState == NAV_STATE_AFOLLOW && _vstatus.condition_target_position_valid && !_do_takeoff) {
+		_pos_sp_triplet.current.valid = true;
+		_pos_sp_triplet.current.type = SETPOINT_TYPE_AFOLLOW;
+
+		math::Vector<3> pos;
+		get_vector_to_next_waypoint_fast(_home_pos.lat, _home_pos.lon, _global_pos.lat, _global_pos.lon, &pos(0), &pos(1));
+		pos(2) = _global_pos.alt;
+
+		math::Vector<3> tpos;
+		get_vector_to_next_waypoint_fast(_home_pos.lat, _home_pos.lon, _target_pos.lat, _target_pos.lon, &tpos(0), &tpos(1));
+		tpos(2) = _target_pos.alt;
+
+		/* add offset to target position */
+		add_vector_to_global_position(
+				_target_lat, _target_lon,
+				_afollow_offset(0), _afollow_offset(1),
+				&_pos_sp_triplet.current.lat, &_pos_sp_triplet.current.lon);
+		_pos_sp_triplet.current.alt = _target_alt + _afollow_offset(2);
+
+		/* calculate direction to target */
+		// TODO add yaw offset, use actual position instead of offset
+		_pos_sp_triplet.current.yaw = atan2f(tpos(1) - pos(1), tpos(0) - pos(0));
+
+		_pos_sp_triplet.current.vel_n = _target_pos.vel_n;
+		_pos_sp_triplet.current.vel_e = _target_pos.vel_e;
+		_pos_sp_triplet.current.vel_d = _target_pos.vel_d;
+
+		_pos_sp_triplet.current.loiter_radius = _parameters.loiter_radius;
+		_pos_sp_triplet.current.loiter_direction = 1;
+		_pos_sp_triplet.current.pitch_min = 0.0f;
+
+
+	}
+
 	/* update position setpoint when following target */
 	if (myState == NAV_STATE_MISSION && _roi_item_valid && _roi_item.roi_mode == ROI_MODE_FOLLOW &&
 			(_follow_offset_prev.valid || _follow_offset_next.valid) && _vstatus.condition_target_position_valid && !_do_takeoff) {
@@ -1803,6 +1893,45 @@ void Navigator::add_fence_point(int argc, char *argv[])
 void Navigator::load_fence_from_file(const char *filename)
 {
 	_geofence.loadFromFile(filename);
+}
+
+void
+Navigator::reset_afollow_offset()
+{
+	if (_reset_afollow_offset) {
+		_reset_afollow_offset = false;
+
+		math::Vector<3> pos;
+		get_vector_to_next_waypoint_fast(_home_pos.lat, _home_pos.lon, _global_pos.lat, _global_pos.lon, &pos(0), &pos(1));
+		pos(2) = _global_pos.alt;
+
+		math::Vector<3> tpos;
+		get_vector_to_next_waypoint_fast(_home_pos.lat, _home_pos.lon, _target_pos.lat, _target_pos.lon, &tpos(0), &tpos(1));
+		tpos(2) = _target_pos.alt;
+
+		math::Vector<3> alt;
+		alt.zero();
+		alt(2) = 5;
+
+
+		_afollow_offset = pos - tpos + alt;
+
+		mavlink_log_info(_mavlink_fd, "[mpc] reset follow offs: %.2f, %.2f, %.2f", _afollow_offset(0), _afollow_offset(1), _afollow_offset(2));
+	}
+}
+
+void
+Navigator::request_afollow()
+{
+	//TODO do required checks here
+	mavlink_log_info(_mavlink_fd, "AFOLLOW on");
+	dispatch(EVENT_AFOLLOW_REQUESTED);
+}
+
+void
+Navigator::start_afollow()
+{
+	reset_afollow_offset();
 }
 
 

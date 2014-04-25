@@ -59,6 +59,7 @@ enum SETPOINT_TYPE
 	SETPOINT_TYPE_TAKEOFF,			/**< takeoff setpoint */
 	SETPOINT_TYPE_LAND,			/**< land setpoint, altitude must be ignored, vehicle must descend until landing */
 	SETPOINT_TYPE_IDLE,			/**< do nothing, switch off motors or keep at idle speed (MC) */
+	SETPOINT_TYPE_AFOLLOW,
 };
 
 struct position_setpoint_s

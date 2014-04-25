@@ -514,7 +514,7 @@ Sensors::Sensors() :
 	/* optional mode switches, not mapped per default */
 	_parameter_handles.rc_map_assisted_sw = param_find("RC_MAP_ASSIST_SW");
 	_parameter_handles.rc_map_mission_sw = param_find("RC_MAP_MISSIO_SW");
-	_parameter_handles.rc_map_afollow_sw = param_find("RC_MAP_AFOLLOW_SW");
+	_parameter_handles.rc_map_afollow_sw = param_find("RC_MAP_AFOLLOW");
 	_parameter_handles.rc_map_cam_follow_sw = param_find("s");
 
 //	_parameter_handles.rc_map_offboard_ctrl_mode_sw = param_find("RC_MAP_OFFB_SW");
@@ -697,7 +697,7 @@ Sensors::parameters_update()
 	_rc.function[ASSISTED] = _parameters.rc_map_assisted_sw - 1;
 	_rc.function[MISSION] = _parameters.rc_map_mission_sw - 1;
 	_rc.function[AFOLLOW] = _parameters.rc_map_afollow_sw - 1;
-	_rc.function[CAMERA_FOLLOW] = _parameters.rc_map_target_buttons_sw - 1;
+	_rc.function[CAMERA_FOLLOW] = _parameters.rc_map_cam_follow_sw - 1;
 
 	_rc.function[FLAPS] = _parameters.rc_map_flaps - 1;
 

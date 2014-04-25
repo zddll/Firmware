@@ -609,7 +609,7 @@ PARAM_DEFINE_INT32(RC_MAP_MISSIO_SW, 0);
  * @max 18
  * @group Radio Calibration
  */
-PARAM_DEFINE_INT32(RC_MAP_AFOLLOW_SW, 0);
+PARAM_DEFINE_INT32(RC_MAP_AFOLLOW, 0);
 
 /**
  * Camera follow switch channel mapping.
