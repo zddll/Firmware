@@ -255,7 +255,7 @@ private:
 		int rc_map_return_sw;
 		int rc_map_assisted_sw;
 		int rc_map_mission_sw;
-		int rc_map_target_buttons_sw;
+		int rc_map_afollow_sw;
 		int rc_map_cam_follow_sw;
 
 //		int rc_map_offboard_ctrl_mode_sw;
@@ -300,7 +300,7 @@ private:
 		param_t rc_map_return_sw;
 		param_t rc_map_assisted_sw;
 		param_t rc_map_mission_sw;
-		param_t rc_map_target_buttons_sw;
+		param_t rc_map_afollow_sw;
 		param_t rc_map_cam_follow_sw;
 
 
@@ -514,7 +514,7 @@ Sensors::Sensors() :
 	/* optional mode switches, not mapped per default */
 	_parameter_handles.rc_map_assisted_sw = param_find("RC_MAP_ASSIST_SW");
 	_parameter_handles.rc_map_mission_sw = param_find("RC_MAP_MISSIO_SW");
-	_parameter_handles.rc_map_target_buttons_sw = param_find("RC_MAP_TARGET_SW");
+	_parameter_handles.rc_map_afollow_sw = param_find("RC_MAP_AFOLLOW_SW");
 	_parameter_handles.rc_map_cam_follow_sw = param_find("s");
 
 //	_parameter_handles.rc_map_offboard_ctrl_mode_sw = param_find("RC_MAP_OFFB_SW");
@@ -664,7 +664,7 @@ Sensors::parameters_update()
 	if (param_get(_parameter_handles.rc_map_mission_sw, &(_parameters.rc_map_mission_sw)) != OK) {
 		warnx(paramerr);
 	}
-	if (param_get(_parameter_handles.rc_map_target_buttons_sw, &(_parameters.rc_map_target_buttons_sw)) != OK) {
+	if (param_get(_parameter_handles.rc_map_afollow_sw, &(_parameters.rc_map_afollow_sw)) != OK) {
 			warnx(paramerr);
 	}
 	if (param_get(_parameter_handles.rc_map_cam_follow_sw, &(_parameters.rc_map_cam_follow_sw)) != OK) {
@@ -696,7 +696,7 @@ Sensors::parameters_update()
 	_rc.function[RETURN] = _parameters.rc_map_return_sw - 1;
 	_rc.function[ASSISTED] = _parameters.rc_map_assisted_sw - 1;
 	_rc.function[MISSION] = _parameters.rc_map_mission_sw - 1;
-	_rc.function[TARGET_BUTTONS] = _parameters.rc_map_target_buttons_sw - 1;
+	_rc.function[AFOLLOW] = _parameters.rc_map_afollow_sw - 1;
 	_rc.function[CAMERA_FOLLOW] = _parameters.rc_map_target_buttons_sw - 1;
 
 	_rc.function[FLAPS] = _parameters.rc_map_flaps - 1;
@@ -1433,7 +1433,7 @@ Sensors::rc_poll()
 			manual.assisted_switch = get_rc_switch_position(ASSISTED);
 			manual.mission_switch = get_rc_switch_position(MISSION);
 			manual.return_switch = get_rc_switch_position(RETURN);
-			manual.target_buttons_switch = get_rc_switch_position(TARGET_BUTTONS);
+			manual.afollow_switch = get_rc_switch_position(AFOLLOW);
 			manual.camera_follow_switch = get_rc_switch_position(CAMERA_FOLLOW);
 
 			/* publish manual_control_setpoint topic */

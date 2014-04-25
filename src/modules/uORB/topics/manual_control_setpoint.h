@@ -80,7 +80,7 @@ struct manual_control_setpoint_s {
 	switch_pos_t return_switch;			/**< land 2 position switch (mandatory): land, no effect */
 	switch_pos_t assisted_switch;			/**< assisted 2 position switch (optional): seatbelt, simple */
 	switch_pos_t mission_switch;		/**< mission 2 position switch (optional): mission, loiter */
-	switch_pos_t target_buttons_switch;		/**< target buttons enable 2 position switch (optional): on, off */
+	switch_pos_t afollow_switch;		/**< target buttons enable 2 position switch (optional): on, off */
 	switch_pos_t camera_follow_switch;		/**< camera follow enable 2 position switch (optional): on, off */
 }; /**< manual control inputs */
 
