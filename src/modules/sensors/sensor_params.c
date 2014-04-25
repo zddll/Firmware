@@ -602,6 +602,24 @@ PARAM_DEFINE_INT32(RC_MAP_ASSIST_SW, 0);
  */
 PARAM_DEFINE_INT32(RC_MAP_MISSIO_SW, 0);
 
+/**
+ * Target buttons switch channel mapping.
+ *
+ * @min 0
+ * @max 18
+ * @group Radio Calibration
+ */
+PARAM_DEFINE_INT32(RC_MAP_TARGET_SW, 0);
+
+/**
+ * Camera follow switch channel mapping.
+ *
+ * @min 0
+ * @max 18
+ * @group Radio Calibration
+ */
+PARAM_DEFINE_INT32(RC_MAP_CAMFOL_SW, 0);
+
 //PARAM_DEFINE_INT32(RC_MAP_OFFB_SW, 0);
 
 /**
