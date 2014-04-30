@@ -602,6 +602,24 @@ PARAM_DEFINE_INT32(RC_MAP_ASSIST_SW, 0);
  */
 PARAM_DEFINE_INT32(RC_MAP_LOITER_SW, 0);
 
+/**
+ * AFOLLOW switch channel mapping.
+ *
+ * @min 0
+ * @max 18
+ * @group Radio Calibration
+ */
+PARAM_DEFINE_INT32(RC_MAP_AFOLLOW, 0);
+
+/**
+ * Camera follow switch channel mapping.
+ *
+ * @min 0
+ * @max 18
+ * @group Radio Calibration
+ */
+PARAM_DEFINE_INT32(RC_MAP_CAMFOL_SW, 0);
+
 //PARAM_DEFINE_INT32(RC_MAP_OFFB_SW, 0);
 
 /**

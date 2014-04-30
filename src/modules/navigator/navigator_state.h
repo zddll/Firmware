@@ -15,6 +15,7 @@ typedef enum {
 	NAV_STATE_MISSION,
 	NAV_STATE_RTL,
 	NAV_STATE_LAND,
+	NAV_STATE_AFOLLOW,
 	NAV_STATE_MAX
 } nav_state_t;
 

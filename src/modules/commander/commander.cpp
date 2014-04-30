@@ -152,6 +152,7 @@ static unsigned int leds_counter;
 static uint64_t last_print_mode_reject_time = 0;
 /* if connected via USB */
 static bool on_usb_power = false;
+static bool remote_mode = false;
 
 static float takeoff_alt = 5.0f;
 static int parachute_enabled = 0;
@@ -1232,7 +1233,15 @@ int commander_thread_main(int argc, char *argv[])
 			}
 
 			/* evaluate the main state machine according to mode switches */
-			res = set_main_state_rc(&status, &sp_man);
+			/* MYHACK mission switch disables RC switches for remote follow buttons.
+			also turns on camera follow in EASY mode*/
+			if (sp_man.mission_switch != SWITCH_POS_ON)
+			{
+				res = set_main_state_rc(&status, &sp_man);
+				remote_mode = false;
+			} else {
+				remote_mode = true;
+			}
 
 			/* play tune on mode change only if armed, blink LED always */
 			if (res == TRANSITION_CHANGED) {
@@ -1245,7 +1254,12 @@ int commander_thread_main(int argc, char *argv[])
 
 			/* set navigation state */
 			/* RETURN switch, overrides MISSION switch */
-			if (sp_man.return_switch == SWITCH_POS_ON) {
+			if (sp_man.afollow_switch == SWITCH_POS_ON)
+			{
+				/* afollow switch on, turn on AUTO_FOLLOW */
+				status.set_nav_state = NAV_STATE_AFOLLOW;
+				status.set_nav_state_timestamp = hrt_absolute_time();
+			} else if (sp_man.return_switch == SWITCH_POS_ON) {
 				/* switch to RTL if not already landed after RTL and home position set */
 				status.set_nav_state = NAV_STATE_RTL;
 				status.set_nav_state_timestamp = hrt_absolute_time();
@@ -1693,6 +1707,7 @@ set_control_mode()
 			control_mode.flag_control_climb_rate_enabled = true;
 			control_mode.flag_control_position_enabled = true;
 			control_mode.flag_control_velocity_enabled = true;
+			control_mode.flag_point_to_target = remote_mode;
 			break;
 
 		case MAIN_STATE_FOLLOW:

@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (C) 2013 PX4 Development Team. All rights reserved.
+ *   Copyright (C) 2008-2012 PX4 Development Team. All rights reserved.
  *   Author: @author Thomas Gubler <thomasgubler@student.ethz.ch>
  *           @author Julian Oes <joes@student.ethz.ch>
  *           @author Lorenz Meier <lm@inf.ethz.ch>
@@ -35,68 +35,29 @@
  ****************************************************************************/
 
 /**
- * @file mission_item_triplet.h
- * Definition of the global WGS84 position setpoint uORB topic.
+ * @file airdog_status.h
+ * Definition of the vehicle command uORB topic.
  */
 
-#ifndef TOPIC_MISSION_ITEM_TRIPLET_H_
-#define TOPIC_MISSION_ITEM_TRIPLET_H_
+#ifndef TOPIC_AIRDOG_STATUS_H_
+#define TOPIC_AIRDOG_STATUS_H_
 
 #include <stdint.h>
-#include <stdbool.h>
 #include "../uORB.h"
-#include <navigator/navigator_state.h>
 
-/**
- * @addtogroup topics
- * @{
- */
-
-enum SETPOINT_TYPE
-{
-	SETPOINT_TYPE_NORMAL = 0,		/**< normal setpoint */
-	SETPOINT_TYPE_LOITER,			/**< loiter setpoint */
-	SETPOINT_TYPE_TAKEOFF,			/**< takeoff setpoint */
-	SETPOINT_TYPE_LAND,			/**< land setpoint, altitude must be ignored, vehicle must descend until landing */
-	SETPOINT_TYPE_IDLE,			/**< do nothing, switch off motors or keep at idle speed (MC) */
-	SETPOINT_TYPE_AFOLLOW,
-};
-
-struct position_setpoint_s
-{
-	bool valid;			/**< true if setpoint is valid */
-	enum SETPOINT_TYPE type;	/**< setpoint type to adjust behavior of position controller */
-	double lat;			/**< latitude, in deg */
-	double lon;			/**< longitude, in deg */
-	float alt;			/**< altitude AMSL, in m */
-	float yaw;			/**< yaw (only for multirotors), in rad [-PI..PI), NaN = hold current yaw */
-	float loiter_radius;		/**< loiter radius (only for fixed wing), in m */
-	int8_t loiter_direction;	/**< loiter direction: 1 = CW, -1 = CCW */
-	float pitch_min;			/**< minimal pitch angle for fixed wing takeoff waypoints */
-	float vel_n;				/**< feed forward North velocity */
-	float vel_e;				/**< feed forward East velocity */
-	float vel_d;				/**< feed forward Downside velocity */
-};
-
-/**
- * Global position setpoint triplet in WGS84 coordinates.
- *
- * This are the three next waypoints (or just the next two or one).
- */
-struct position_setpoint_triplet_s
-{
-	struct position_setpoint_s previous;
-	struct position_setpoint_s current;
-	struct position_setpoint_s next;
-
-	nav_state_t nav_state;			/**< navigation state */
-};
+struct airdog_status_s {
+	uint32_t custom_mode; ///< A bitfield for use for autopilot-specific flags.
+ 	uint8_t base_mode; ///< System mode bitfield, see MAV_MODE_FLAGS ENUM in mavlink/include/mavlink_types.h
+ 	uint8_t system_status; ///< System status flag, see MAV_STATE ENUM
+ }; /**< command sent to vehicle */
 
 /**
  * @}
  */
 
 /* register this as object request broker structure */
-ORB_DECLARE(position_setpoint_triplet);
+ORB_DECLARE(airdog_status);
+
+
 
 #endif

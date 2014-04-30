@@ -73,6 +73,8 @@ enum RC_CHANNELS_FUNCTION {
 	AUX_3   = 12,
 	AUX_4   = 13,
 	AUX_5   = 14,
+	AFOLLOW = 15,
+	CAMERA_FOLLOW = 16,
 	RC_CHANNELS_FUNCTION_MAX /**< indicates the number of functions. There can be more functions than RC channels. */
 };
 
