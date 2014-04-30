@@ -1781,24 +1781,15 @@ Navigator::publish_position_setpoint_triplet()
 		_pos_sp_triplet.current.valid = true;
 		_pos_sp_triplet.current.type = SETPOINT_TYPE_AFOLLOW;
 
-		math::Vector<3> pos;
-		get_vector_to_next_waypoint_fast(_home_pos.lat, _home_pos.lon, _global_pos.lat, _global_pos.lon, &pos(0), &pos(1));
-		pos(2) = _global_pos.alt;
-
-		math::Vector<3> tpos;
-		get_vector_to_next_waypoint_fast(_home_pos.lat, _home_pos.lon, _target_pos.lat, _target_pos.lon, &tpos(0), &tpos(1));
-		tpos(2) = _target_pos.alt;
-
 		/* add offset to target position */
 		add_vector_to_global_position(
 				_target_lat, _target_lon,
 				_afollow_offset(0), _afollow_offset(1),
 				&_pos_sp_triplet.current.lat, &_pos_sp_triplet.current.lon);
-		_pos_sp_triplet.current.alt = _target_alt + _afollow_offset(2);
+		_pos_sp_triplet.current.alt = _target_alt - _afollow_offset(2);
 
 		/* calculate direction to target */
-		// TODO add yaw offset, use actual position instead of offset
-		_pos_sp_triplet.current.yaw = atan2f(tpos(1) - pos(1), tpos(0) - pos(0));
+		_pos_sp_triplet.current.yaw = get_bearing_to_next_waypoint(_global_pos.lat, _global_pos.lon, _target_pos.lat, _target_pos.lon);
 
 		_pos_sp_triplet.current.vel_n = _target_pos.vel_n;
 		_pos_sp_triplet.current.vel_e = _target_pos.vel_e;
@@ -1807,8 +1798,6 @@ Navigator::publish_position_setpoint_triplet()
 		_pos_sp_triplet.current.loiter_radius = _parameters.loiter_radius;
 		_pos_sp_triplet.current.loiter_direction = 1;
 		_pos_sp_triplet.current.pitch_min = 0.0f;
-
-
 	}
 
 	/* update position setpoint when following target */
