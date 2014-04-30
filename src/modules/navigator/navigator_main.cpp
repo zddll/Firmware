@@ -1880,6 +1880,7 @@ Navigator::start_afollow()
 	/* always reset offset on mode start */
 	{
 		get_vector_to_next_waypoint_fast(_target_lat, _target_lon, _global_pos.lat, _global_pos.lon, &_afollow_offset.data[0], &_afollow_offset.data[1]);
+		_afollow_offset(2) = -(_global_pos.alt - _target_alt);
 
 		mavlink_log_info(_mavlink_fd, "[nav] reset afollow offs: %.2f, %.2f, %.2f", _afollow_offset(0), _afollow_offset(1), _afollow_offset(2));
 	}
