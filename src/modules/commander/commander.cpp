@@ -1235,7 +1235,7 @@ int commander_thread_main(int argc, char *argv[])
 			/* evaluate the main state machine according to mode switches */
 			/* MYHACK mission switch disables RC switches for remote follow buttons.
 			also turns on camera follow in EASY mode*/
-			if (sp_man.mission_switch != SWITCH_POS_ON)
+			if (sp_man.loiter_switch != SWITCH_POS_ON)
 			{
 				res = set_main_state_rc(&status, &sp_man);
 				remote_mode = false;

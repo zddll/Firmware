@@ -664,10 +664,10 @@ Sensors::parameters_update()
 		warnx("%s", paramerr);
 	}
 	if (param_get(_parameter_handles.rc_map_afollow_sw, &(_parameters.rc_map_afollow_sw)) != OK) {
-			warnx(paramerr);
+		warnx("%s", paramerr);
 	}
 	if (param_get(_parameter_handles.rc_map_cam_follow_sw, &(_parameters.rc_map_cam_follow_sw)) != OK) {
-			warnx(paramerr);
+		warnx("%s", paramerr);
 	}
 
 	if (param_get(_parameter_handles.rc_map_flaps, &(_parameters.rc_map_flaps)) != OK) {
