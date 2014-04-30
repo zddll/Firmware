@@ -186,7 +186,6 @@ private:
 	struct follow_offset_s	_follow_offset_prev;		/**< offset from target for previous "follow" waypoint */
 	struct follow_offset_s	_follow_offset_next;		/**< offset from target for next "follow" waypoint */
 
-	struct map_projection_reference_s _ref_pos;
 	math::Vector<3>  _afollow_offset;			/**< offset from target for AFOLLOW mode */
 
 	perf_counter_t	_loop_perf;			/**< loop performance counter */
@@ -215,8 +214,6 @@ private:
 	uint64_t	_set_nav_state_timestamp;		/**< timestamp of last handled navigation state request */
 
 	bool		_pos_sp_triplet_updated;
-
-	bool _reset_afollow_offset;
 
 	const char *nav_states_str[NAV_STATE_MAX];
 
@@ -343,12 +340,6 @@ private:
 	 */
 	void		request_loiter_or_ready();
 	void		request_mission_if_available();
-	void		request_afollow();
-
-	/**
-	 * resets afollow terget offset
-	 */
-	void		reset_afollow_offset();
 
 	/**
 	 * Guards offboard mission
@@ -458,8 +449,7 @@ Navigator::Navigator() :
 	_roi_item_valid(false),
 	_target_lat(0.0),
 	_target_lon(0.0),
-	_target_alt(0.0f),
-	_reset_afollow_offset(true)
+	_target_alt(0.0f)
 {
 	_parameter_handles.min_altitude = param_find("NAV_MIN_ALT");
 	_parameter_handles.acceptance_radius = param_find("NAV_ACCEPT_RAD");
@@ -477,7 +467,6 @@ Navigator::Navigator() :
 	memset(&_follow_offset_next, 0, sizeof(_follow_offset_next));
 	memset(&_afollow_offset, 0, sizeof(_afollow_offset));
 	memset(&_target_pos, 0, sizeof(_target_pos));
-	memset(&_ref_pos, 0, sizeof(_ref_pos));
 
 	memset(&nav_states_str, 0, sizeof(nav_states_str));
 	nav_states_str[0] = "NONE";
@@ -697,8 +686,6 @@ Navigator::task_main()
 	hrt_abstime mavlink_open_time = 0;
 	const hrt_abstime mavlink_open_interval = 500000;
 
-	bool was_armed = false;
-
 	/* wakeup source(s) */
 	struct pollfd fds[9];
 
@@ -755,13 +742,6 @@ Navigator::task_main()
 		if (fds[6].revents & POLLIN) {
 			vehicle_status_update();
 
-			if (_control_mode.flag_armed && !was_armed) {
-				/* reset setpoints and integrals on arming */
-				_reset_afollow_offset = true;
-			}
-
-			was_armed = _control_mode.flag_armed;
-
 			/* evaluate state requested by commander */
 			if (_control_mode.flag_armed && _control_mode.flag_control_auto_enabled) {
 				if (_vstatus.set_nav_state_timestamp != _set_nav_state_timestamp) {
@@ -772,7 +752,6 @@ Navigator::task_main()
 						break;
 
 					case NAV_STATE_LOITER:
-						_reset_afollow_offset = true;
 						request_loiter_or_ready();
 						break;
 
@@ -794,7 +773,7 @@ Navigator::task_main()
 						break;
 
 					case NAV_STATE_AFOLLOW:
-						request_afollow();
+						dispatch(EVENT_AFOLLOW_REQUESTED);
 						break;
 
 					default:
@@ -1896,42 +1875,14 @@ void Navigator::load_fence_from_file(const char *filename)
 }
 
 void
-Navigator::reset_afollow_offset()
-{
-	if (_reset_afollow_offset) {
-		_reset_afollow_offset = false;
-
-		math::Vector<3> pos;
-		get_vector_to_next_waypoint_fast(_home_pos.lat, _home_pos.lon, _global_pos.lat, _global_pos.lon, &pos(0), &pos(1));
-		pos(2) = _global_pos.alt;
-
-		math::Vector<3> tpos;
-		get_vector_to_next_waypoint_fast(_home_pos.lat, _home_pos.lon, _target_pos.lat, _target_pos.lon, &tpos(0), &tpos(1));
-		tpos(2) = _target_pos.alt;
-
-		math::Vector<3> alt;
-		alt.zero();
-		alt(2) = 5;
-
-
-		_afollow_offset = pos - tpos + alt;
-
-		mavlink_log_info(_mavlink_fd, "[mpc] reset follow offs: %.2f, %.2f, %.2f", _afollow_offset(0), _afollow_offset(1), _afollow_offset(2));
-	}
-}
-
-void
-Navigator::request_afollow()
-{
-	//TODO do required checks here
-	mavlink_log_info(_mavlink_fd, "AFOLLOW on");
-	dispatch(EVENT_AFOLLOW_REQUESTED);
-}
-
-void
 Navigator::start_afollow()
 {
-	reset_afollow_offset();
+	/* always reset offset on mode start */
+	{
+		get_vector_to_next_waypoint_fast(_target_lat, _target_lon, _global_pos.lat, _global_pos.lon, &_afollow_offset.data[0], &_afollow_offset.data[1]);
+
+		mavlink_log_info(_mavlink_fd, "[nav] reset afollow offs: %.2f, %.2f, %.2f", _afollow_offset(0), _afollow_offset(1), _afollow_offset(2));
+	}
 }
 
 
