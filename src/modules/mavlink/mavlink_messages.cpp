@@ -161,6 +161,12 @@ void get_mavlink_mode_state(struct vehicle_status_s *status, struct position_set
 
 		} else if (pos_sp_triplet->nav_state == NAV_STATE_LAND) {
 			custom_mode.sub_mode = PX4_CUSTOM_SUB_MODE_AUTO_LAND;
+
+		} else if (pos_sp_triplet->nav_state == NAV_STATE_TAKEOFF) {
+			custom_mode.sub_mode = PX4_CUSTOM_SUB_MODE_AUTO_TAKEOFF;
+
+		} else if (pos_sp_triplet->nav_state == NAV_STATE_AFOLLOW) {
+			custom_mode.sub_mode = PX4_CUSTOM_SUB_MODE_AUTO_AFOLLOW;
 		}
 	}
 

@@ -248,6 +248,7 @@ private:
 		EVENT_LAND_REQUESTED,
 		EVENT_MISSION_CHANGED,
 		EVENT_HOME_POSITION_CHANGED,
+		EVENT_TAKEOFF_REQUESTED,
 		EVENT_AFOLLOW_REQUESTED,
 		MAX_EVENT
 	};
@@ -334,6 +335,7 @@ private:
 	void		start_land();
 	void		start_land_home();
 	void		start_afollow();
+	void		start_takeoff();
 
 	/**
 	 * Fork for state transitions
@@ -475,7 +477,8 @@ Navigator::Navigator() :
 	nav_states_str[3] = "MISSION";
 	nav_states_str[4] = "RTL";
 	nav_states_str[5] = "LAND";
-	nav_states_str[6] = "AFOLLOW";
+	nav_states_str[6] = "TAKEOFF";
+	nav_states_str[7] = "AFOLLOW";
 
 	_afollow_offset.zero();
 	_afollow_offset(2) = -20.0f;
@@ -775,6 +778,10 @@ Navigator::task_main()
 						dispatch(EVENT_LAND_REQUESTED);
 						break;
 
+					case NAV_STATE_TAKEOFF:
+						dispatch(EVENT_TAKEOFF_REQUESTED);
+						break;
+
 					case NAV_STATE_AFOLLOW:
 						dispatch(EVENT_AFOLLOW_REQUESTED);
 						break;
@@ -1016,6 +1023,7 @@ StateTable::Tran const Navigator::myTable[NAV_STATE_MAX][MAX_EVENT] = {
 		/* EVENT_LAND_REQUESTED */		{ACTION(&Navigator::start_land), NAV_STATE_LAND},
 		/* EVENT_MISSION_CHANGED */		{NO_ACTION, NAV_STATE_NONE},
 		/* EVENT_HOME_POSITION_CHANGED */	{NO_ACTION, NAV_STATE_NONE},
+		/* EVENT_TAKEOFF REQUESTED */    {ACTION(&Navigator::start_takeoff), NAV_STATE_TAKEOFF},
 		/* EVENT_FOLLOW_REQUESTED */    {ACTION(&Navigator::start_afollow), NAV_STATE_AFOLLOW},
 	},
 	{
@@ -1028,6 +1036,7 @@ StateTable::Tran const Navigator::myTable[NAV_STATE_MAX][MAX_EVENT] = {
 		/* EVENT_LAND_REQUESTED */		{NO_ACTION, NAV_STATE_READY},
 		/* EVENT_MISSION_CHANGED */		{NO_ACTION, NAV_STATE_READY},
 		/* EVENT_HOME_POSITION_CHANGED */	{NO_ACTION, NAV_STATE_READY},
+		/* EVENT_TAKEOFF REQUESTED */    {ACTION(&Navigator::start_takeoff), NAV_STATE_TAKEOFF},
 		/* EVENT_FOLLOW_REQUESTED */    {ACTION(&Navigator::start_afollow), NAV_STATE_AFOLLOW},
 	},
 	{
@@ -1040,6 +1049,7 @@ StateTable::Tran const Navigator::myTable[NAV_STATE_MAX][MAX_EVENT] = {
 		/* EVENT_LAND_REQUESTED */		{ACTION(&Navigator::start_land), NAV_STATE_LAND},
 		/* EVENT_MISSION_CHANGED */		{NO_ACTION, NAV_STATE_LOITER},
 		/* EVENT_HOME_POSITION_CHANGED */	{NO_ACTION, NAV_STATE_LOITER},
+		/* EVENT_TAKEOFF REQUESTED */    {ACTION(&Navigator::start_takeoff), NAV_STATE_TAKEOFF},
 		/* EVENT_FOLLOW_REQUESTED */    {ACTION(&Navigator::start_afollow), NAV_STATE_AFOLLOW},
 	},
 	{
@@ -1052,6 +1062,7 @@ StateTable::Tran const Navigator::myTable[NAV_STATE_MAX][MAX_EVENT] = {
 		/* EVENT_LAND_REQUESTED */		{ACTION(&Navigator::start_land), NAV_STATE_LAND},
 		/* EVENT_MISSION_CHANGED */		{ACTION(&Navigator::start_mission), NAV_STATE_MISSION},
 		/* EVENT_HOME_POSITION_CHANGED */	{NO_ACTION, NAV_STATE_MISSION},
+		/* EVENT_TAKEOFF REQUESTED */    {NO_ACTION, NAV_STATE_MISSION},
 		/* EVENT_FOLLOW_REQUESTED */    {ACTION(&Navigator::start_afollow), NAV_STATE_AFOLLOW},
 	},
 	{
@@ -1064,6 +1075,7 @@ StateTable::Tran const Navigator::myTable[NAV_STATE_MAX][MAX_EVENT] = {
 		/* EVENT_LAND_REQUESTED */		{ACTION(&Navigator::start_land_home), NAV_STATE_LAND},
 		/* EVENT_MISSION_CHANGED */		{NO_ACTION, NAV_STATE_RTL},
 		/* EVENT_HOME_POSITION_CHANGED */	{ACTION(&Navigator::start_rtl), NAV_STATE_RTL},	// TODO need to reset rtl_state
+		/* EVENT_TAKEOFF REQUESTED */    {NO_ACTION, NAV_STATE_RTL},
 		/* EVENT_FOLLOW_REQUESTED */    {ACTION(&Navigator::start_afollow), NAV_STATE_AFOLLOW},
 	},
 	{
@@ -1076,7 +1088,21 @@ StateTable::Tran const Navigator::myTable[NAV_STATE_MAX][MAX_EVENT] = {
 		/* EVENT_LAND_REQUESTED */		{NO_ACTION, NAV_STATE_LAND},
 		/* EVENT_MISSION_CHANGED */		{NO_ACTION, NAV_STATE_LAND},
 		/* EVENT_HOME_POSITION_CHANGED */	{NO_ACTION, NAV_STATE_LAND},
+		/* EVENT_TAKEOFF REQUESTED */    {NO_ACTION, NAV_STATE_LAND},
 		/* EVENT_FOLLOW_REQUESTED */    {NO_ACTION, NAV_STATE_LAND},
+	},
+	{
+		/* NAV_STATE_TAKEOFF */
+		/* EVENT_NONE_REQUESTED */        {NO_ACTION, NAV_STATE_TAKEOFF},
+		/* EVENT_READY_REQUESTED */        {NO_ACTION, NAV_STATE_TAKEOFF},
+		/* EVENT_LOITER_REQUESTED */        {ACTION(&Navigator::start_loiter), NAV_STATE_LOITER},
+		/* EVENT_MISSION_REQUESTED */    {NO_ACTION, NAV_STATE_TAKEOFF},
+		/* EVENT_RTL_REQUESTED */        {NO_ACTION, NAV_STATE_TAKEOFF},
+		/* EVENT_LAND_REQUESTED */        {NO_ACTION, NAV_STATE_TAKEOFF},
+		/* EVENT_MISSION_CHANGED */        {NO_ACTION, NAV_STATE_TAKEOFF},
+		/* EVENT_HOME_POSITION_CHANGED */    {NO_ACTION, NAV_STATE_TAKEOFF},
+		/* EVENT_TAKEOFF REQUESTED */    {NO_ACTION, NAV_STATE_TAKEOFF},
+		/* EVENT_AFOLLOW_REQUESTED */    {ACTION(&Navigator::start_afollow), NAV_STATE_AFOLLOW},
 	},
 	{
 		/* NAV_STATE_FOLLOW */
@@ -1085,9 +1111,10 @@ StateTable::Tran const Navigator::myTable[NAV_STATE_MAX][MAX_EVENT] = {
 		/* EVENT_LOITER_REQUESTED */        {ACTION(&Navigator::start_loiter), NAV_STATE_LOITER},
 		/* EVENT_MISSION_REQUESTED */    {NO_ACTION, NAV_STATE_AFOLLOW},
 		/* EVENT_RTL_REQUESTED */        {ACTION(&Navigator::start_rtl), NAV_STATE_RTL},
-		/* EVENT_LAND_REQUESTED */        {ACTION(&Navigator::start_land_home), NAV_STATE_LAND},
+		/* EVENT_LAND_REQUESTED */        {ACTION(&Navigator::start_land), NAV_STATE_LAND},
 		/* EVENT_MISSION_CHANGED */        {NO_ACTION, NAV_STATE_AFOLLOW},
 		/* EVENT_HOME_POSITION_CHANGED */    {NO_ACTION, NAV_STATE_AFOLLOW},
+		/* EVENT_TAKEOFF REQUESTED */    {NO_ACTION, NAV_STATE_AFOLLOW},
 		/* EVENT_AFOLLOW_REQUESTED */    {NO_ACTION, NAV_STATE_AFOLLOW},
 	},
 };
@@ -1871,6 +1898,33 @@ void Navigator::add_fence_point(int argc, char *argv[])
 void Navigator::load_fence_from_file(const char *filename)
 {
 	_geofence.loadFromFile(filename);
+}
+
+void
+Navigator::start_takeoff()
+{
+	/* calculate desired takeoff altitude AMSL */
+	float takeoff_alt_amsl = _pos_sp_triplet.current.alt;
+
+	takeoff_alt_amsl = fmaxf(takeoff_alt_amsl, _global_pos.alt + _parameters.takeoff_alt);
+
+	/* check if we really need takeoff */
+	if (_vstatus.condition_landed || _global_pos.alt < takeoff_alt_amsl - _parameters.acceptance_radius) {
+		/* force TAKEOFF if landed or waypoint altitude is more than current */
+		_do_takeoff = true;
+		/* set current setpoint to takeoff */
+
+		_pos_sp_triplet.current.lat = _global_pos.lat;
+		_pos_sp_triplet.current.lon = _global_pos.lon;
+		_pos_sp_triplet.current.alt = takeoff_alt_amsl;
+		_pos_sp_triplet.current.yaw = NAN;
+		_pos_sp_triplet.current.type = SETPOINT_TYPE_TAKEOFF;
+	}
+	if (_do_takeoff) {
+		mavlink_log_info(_mavlink_fd, "#audio: takeoff to %.1fm above home", (double)(_pos_sp_triplet.current.alt - _home_pos.alt));
+	}
+	_pos_sp_triplet_updated = true;
+	mavlink_log_info(_mavlink_fd, "[nav] taking off, %.1f of %.1f", _global_pos.alt, _pos_sp_triplet.current.alt);
 }
 
 void

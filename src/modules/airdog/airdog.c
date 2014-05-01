@@ -18,6 +18,7 @@
 
 #include <drivers/drv_gpio.h>
 #include <commander/px4_custom_mode.h>
+#include <navigator/navigator_state.h>
 
 enum REMOTE_BUTTON_STATE {
 	PAUSE=1,
@@ -47,6 +48,7 @@ struct airdog_app_s {
 	uint8_t base_mode;
 	int gpio_fd;
 	int inputs;
+	struct gpio_button_s takeoff_button;
 	struct gpio_button_s follow_button;
 	struct airdog_status_s airdog_status;
 	int airdog_status_sub;
@@ -66,6 +68,7 @@ void airdog_cycle(FAR void *arg);
 void airdog_start(FAR void *arg);
 
 void send_set_mode(uint8_t base_mode, uint8_t custom_main_mode);
+void send_set_state(uint8_t state);
 
 /**
  * Print the correct usage.
@@ -155,20 +158,48 @@ void send_set_mode(uint8_t base_mode, enum PX4_CUSTOM_MAIN_MODE custom_main_mode
 	}
 }
 
+void send_set_state(enum NAV_STATE state) {
+	/* TODO this is very ugly, need to rewrite app to C++ and use class fields instead of static var */
+	struct vehicle_command_s cmd;
+	memset(&cmd, 0, sizeof(cmd));
+
+	int state_sub = orb_subscribe(ORB_ID(vehicle_status));
+	struct vehicle_status_s status;
+	orb_copy(ORB_ID(vehicle_status), state_sub, &status);
+
+	/* fill command */
+	cmd.command = VEHICLE_CMD_NAV_SET_STATE;
+	cmd.param1 = state;
+	cmd.confirmation = false;
+	cmd.source_system = status.system_id;
+	cmd.source_component = status.component_id;
+	// TODO add parameters AD_VEH_SYSID, AD_VEH_COMP to set target id
+	cmd.target_system = 1;
+	cmd.target_component = 50;
+
+	if (cmd_pub < 0) {
+		cmd_pub = orb_advertise(ORB_ID(vehicle_command), &cmd);
+
+	} else {
+		orb_publish(ORB_ID(vehicle_command), cmd_pub, &cmd);
+	}
+}
+
 void airdog_start(FAR void *arg)
 {
 	FAR struct airdog_app_s *priv = (FAR struct airdog_app_s *)arg;
 
+/*	priv->base_mode = MAV_MODE_FLAG_SAFETY_ARMED | MAV_MODE_FLAG_CUSTOM_MODE_ENABLED | MAV_MODE_FLAG_HIL_ENABLED;*/
 	priv->base_mode = MAV_MODE_FLAG_SAFETY_ARMED | MAV_MODE_FLAG_CUSTOM_MODE_ENABLED;
-	priv->follow_button.pin = 0;
+	priv->takeoff_button.pin = 0;
+	priv->takeoff_button.button_pressed = false;
+	priv->takeoff_button.state = PAUSE;
+
+	priv->follow_button.pin = 1;
 	priv->follow_button.button_pressed = false;
-	priv->follow_button.state = PAUSE;
-/*
-	button2.pin = 1;
-	button2.type = REMOTE_BUTTON_TAKEOFF_LAND;
-	button2.button_pressed = false;
-*/
-	priv->inputs = priv->follow_button.pin + 1;
+	priv->follow_button.state = START;
+
+	priv->inputs = priv->follow_button.pin + 1 + priv->takeoff_button.pin + 1;
 	
 
 	/* open GPIO device */
@@ -209,32 +240,56 @@ void airdog_cycle(FAR void *arg) {
 		orb_copy(ORB_ID(airdog_status), priv->airdog_status_sub, &priv->airdog_status);
 	}
 	/*warnx("testing: %d", priv->airdog_status.custom_mode);*/
-	int custom_mode = priv->airdog_status.custom_mode >> 16;
+	union px4_custom_mode custom_mode;
+	custom_mode.data = priv->airdog_status.custom_mode;
 	
 
 	/* check the GPIO */
-	unsigned long gpio_values = 0;
-	ioctl(priv->gpio_fd, GPIO_GET, gpio_values);
+	uint32_t gpio_values;
+	ioctl(priv->gpio_fd, GPIO_GET, &gpio_values);
 
 	if (!(gpio_values & (1 << priv->follow_button.pin))) {
 		if (priv->follow_button.button_pressed == false){
-			warnx("button 1 pressed %d", priv->current_custom_mode);
-
-			if (custom_mode == PX4_CUSTOM_MAIN_MODE_FOLLOW){
-				send_set_mode(priv->base_mode, PX4_CUSTOM_MAIN_MODE_EASY);
-
-			} else if (custom_mode == (PX4_CUSTOM_MAIN_MODE_EASY)){
-				send_set_mode(priv->base_mode, PX4_CUSTOM_MAIN_MODE_FOLLOW);
-
-			} else if (custom_mode == (PX4_CUSTOM_MAIN_MODE_SEATBELT)){
-				send_set_mode(priv->base_mode, PX4_CUSTOM_MAIN_MODE_FOLLOW);
+			warnx("custom mode %d data %d", priv->airdog_status.custom_mode, custom_mode.data);
+			warnx("follow button pressed %d", custom_mode.sub_mode);
+			if (priv->follow_button.state == PAUSE)
+			{
+				send_set_state(NAV_STATE_AFOLLOW);
+				priv->follow_button.state = START;
+			} else {
+				send_set_state(NAV_STATE_LOITER);
+				priv->follow_button.state = PAUSE;
 			}
+			
 			priv->follow_button.button_pressed = true;
 		}
 	} else {
 		if (priv->follow_button.button_pressed == true){
-			warnx("button 1 let go");
+			warnx("follow button let go");
 			priv->follow_button.button_pressed = false;
+		}
+	}
+	if (!(gpio_values & (1 << priv->takeoff_button.pin))) {
+		if (priv->takeoff_button.button_pressed == false){
+			warnx("takeoff button pressed %d", priv->current_custom_mode);
+
+		
+			if (priv->takeoff_button.state == PAUSE)
+			{
+				send_set_mode(priv->base_mode, PX4_CUSTOM_MAIN_MODE_AUTO);
+				
+				priv->takeoff_button.state = START;
+			} else {
+				send_set_state(NAV_STATE_TAKEOFF);
+				priv->takeoff_button.state = PAUSE;
+			}
+
+			priv->takeoff_button.button_pressed = true;
+		}
+	} else {
+		if (priv->takeoff_button.button_pressed == true){
+			warnx("takeoff button let go");
+			priv->takeoff_button.button_pressed = false;
 		}
 	}
 	/* repeat cycle at 10 Hz */

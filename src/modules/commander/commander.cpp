@@ -485,6 +485,16 @@ bool handle_command(struct vehicle_status_s *status, const struct safety_s *safe
 			break;
 		}
 
+	case VEHICLE_CMD_NAV_SET_STATE: {
+        uint8_t state = (uint8_t) cmd->param1;
+        mavlink_log_info(mavlink_fd, "commander change state to %d", state);
+        status->set_nav_state = state;
+        status->set_nav_state_timestamp = hrt_absolute_time();
+        //TODO check if really changed
+        result = VEHICLE_CMD_RESULT_ACCEPTED;
+        break;
+    }
+
 	case VEHICLE_CMD_COMPONENT_ARM_DISARM: {
             // Follow exactly what the mavlink spec says for values: 0.0f for disarm, 1.0f for arm.
             // We use an float epsilon delta to test float equality.
@@ -1259,6 +1269,10 @@ int commander_thread_main(int argc, char *argv[])
 				/* afollow switch on, turn on AUTO_FOLLOW */
 				status.set_nav_state = NAV_STATE_AFOLLOW;
 				status.set_nav_state_timestamp = hrt_absolute_time();
+			} else if (sp_man.afollow_switch != SWITCH_POS_ON)
+			{
+				status.set_nav_state = NAV_STATE_LOITER;
+				status.set_nav_state_timestamp = hrt_absolute_time();
 			} else if (sp_man.return_switch == SWITCH_POS_ON) {
 				/* switch to RTL if not already landed after RTL and home position set */
 				status.set_nav_state = NAV_STATE_RTL;
@@ -1874,6 +1888,7 @@ void *commander_low_prio_loop(void *arg)
 		if (cmd.command == VEHICLE_CMD_DO_SET_MODE ||
 		    cmd.command == VEHICLE_CMD_COMPONENT_ARM_DISARM ||
 		    cmd.command == VEHICLE_CMD_NAV_TAKEOFF ||
+		    cmd.command == VEHICLE_CMD_NAV_SET_STATE ||
 		    cmd.command == VEHICLE_CMD_DO_SET_SERVO)
 			continue;
 
