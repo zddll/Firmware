@@ -125,7 +125,7 @@ void
 MavlinkReceiver::handle_message(mavlink_message_t *msg)
 {
 	int32_t binded_id;
-	param_get(param_find("MAV_BINDED_DEVICE_ID"), &binded_id);
+	param_get(param_find("MAV_BINDED_ID"), &binded_id);
 
     if (_mavlink_fd == -1) {
         _mavlink_fd = open(MAVLINK_LOG_DEVICE, 0);
