@@ -20,6 +20,8 @@
 #include <commander/px4_custom_mode.h>
 #include <navigator/navigator_state.h>
 
+#include <mavlink/mavlink_log.h>
+
 enum REMOTE_BUTTON_STATE {
 	PAUSE=1,
 	START=2,
@@ -74,6 +76,7 @@ void send_set_state(uint8_t state);
  * Print the correct usage.
  */
 static void usage(const char *reason);
+static int _mavlink_fd;
 
 static void
 usage(const char *reason)
@@ -227,6 +230,9 @@ void airdog_start(FAR void *arg)
 		airdog_running = false;
 		return;
 	}
+
+    _mavlink_fd = open(MAVLINK_LOG_DEVICE, 0);
+    mavlink_log_info(_mavlink_fd, "[mpc] started");
 };
 
 void airdog_cycle(FAR void *arg) {
@@ -247,11 +253,10 @@ void airdog_cycle(FAR void *arg) {
 	/* check the GPIO */
 	uint32_t gpio_values;
 	ioctl(priv->gpio_fd, GPIO_GET, &gpio_values);
-
-	if (!(gpio_values & (1 << priv->follow_button.pin))) {
+    if (!(gpio_values & (1 << priv->follow_button.pin))) {
 		if (priv->follow_button.button_pressed == false){
-			warnx("custom mode %d data %d", priv->airdog_status.custom_mode, custom_mode.data);
-			warnx("follow button pressed %d", custom_mode.sub_mode);
+		    mavlink_log_info(_mavlink_fd, "custom mode %d data %d", priv->airdog_status.custom_mode, custom_mode.data);
+		    mavlink_log_info(_mavlink_fd, "follow button pressed %d", custom_mode.sub_mode);
 			if (priv->follow_button.state == PAUSE)
 			{
 				send_set_state(NAV_STATE_AFOLLOW);
@@ -265,30 +270,29 @@ void airdog_cycle(FAR void *arg) {
 		}
 	} else {
 		if (priv->follow_button.button_pressed == true){
-			warnx("follow button let go");
+			mavlink_log_info(_mavlink_fd, "follow button let go");
 			priv->follow_button.button_pressed = false;
 		}
 	}
 	if (!(gpio_values & (1 << priv->takeoff_button.pin))) {
-		if (priv->takeoff_button.button_pressed == false){
-			warnx("takeoff button pressed %d", priv->current_custom_mode);
+        if (priv->takeoff_button.button_pressed == false){
+            mavlink_log_info(_mavlink_fd, "takeoff button pressed %d", priv->current_custom_mode);
 
-		
-			if (priv->takeoff_button.state == PAUSE)
-			{
-				send_set_mode(priv->base_mode, PX4_CUSTOM_MAIN_MODE_AUTO);
-				
-				priv->takeoff_button.state = START;
-			} else {
-				send_set_state(NAV_STATE_TAKEOFF);
-				priv->takeoff_button.state = PAUSE;
-			}
+            if (priv->takeoff_button.state == PAUSE)
+            {
+                send_set_mode(priv->base_mode, PX4_CUSTOM_MAIN_MODE_AUTO);
+
+                priv->takeoff_button.state = START;
+            } else {
+                send_set_state(NAV_STATE_TAKEOFF);
+                priv->takeoff_button.state = PAUSE;
+            }
 
 			priv->takeoff_button.button_pressed = true;
 		}
 	} else {
 		if (priv->takeoff_button.button_pressed == true){
-			warnx("takeoff button let go");
+			mavlink_log_info(_mavlink_fd, "takeoff button let go");
 			priv->takeoff_button.button_pressed = false;
 		}
 	}

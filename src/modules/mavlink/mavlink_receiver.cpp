@@ -84,6 +84,7 @@ __BEGIN_DECLS
 __END_DECLS
 
 static const float mg2ms2 = CONSTANTS_ONE_G / 1000.0f;
+static int _mavlink_fd = -1;
 
 MavlinkReceiver::MavlinkReceiver(Mavlink *parent) :
 	_mavlink(parent),
@@ -110,7 +111,8 @@ MavlinkReceiver::MavlinkReceiver(Mavlink *parent) :
 	_hil_frames(0),
 	_old_timestamp(0),
 	_hil_local_proj_inited(0),
-	_hil_local_alt0(0.0)
+	_hil_local_alt0(0.0),
+    _airdog_status_pub(-1)
 {
 	memset(&hil_local_pos, 0, sizeof(hil_local_pos));
 }
@@ -122,7 +124,28 @@ MavlinkReceiver::~MavlinkReceiver()
 void
 MavlinkReceiver::handle_message(mavlink_message_t *msg)
 {
-	switch (msg->msgid) {
+	int32_t binded_id;
+	param_get(param_find("MAV_BINDED_DEVICE_ID"), &binded_id);
+
+    if (_mavlink_fd == -1) {
+        _mavlink_fd = open(MAVLINK_LOG_DEVICE, 0);
+    }
+
+#ifdef SHOULD_FILTER_MESSAGES
+    bool should_filter = false;
+    if (!_mavlink->get_hil_enabled()) {
+        should_filter = msg->sysid != binded_id;
+    }
+
+    if (should_filter) {
+        /* TODO: seems like packets are currently comming from multiple systems*/
+        _mavlink->set_has_received_messages(false);
+        mavlink_log_info(_mavlink_fd, "Unauthorized system id: %d", msg->sysid);
+        return;
+    }
+#endif
+
+    switch (msg->msgid) {
 	case MAVLINK_MSG_ID_COMMAND_LONG:
 		handle_message_command_long(msg);
 		break;
@@ -897,7 +920,8 @@ MavlinkReceiver::handle_message_hil_state_quaternion(mavlink_message_t *msg)
 void
 MavlinkReceiver::handle_message_airdog_heartbeat(mavlink_message_t *msg)
 {
-	if(msg->sysid == 1) { //SIMIS TODO get sysid from linked airdog
+	mavlink_log_info(_mavlink_fd, "Message received: %d", msg);
+    if(msg->sysid == 1) { //SIMIS TODO get sysid from linked airdog
 		mavlink_heartbeat_t heartbeat;
 		mavlink_msg_heartbeat_decode(msg, &heartbeat);
 

@@ -69,6 +69,9 @@ PARAM_DEFINE_INT32(MAV_TYPE, MAV_TYPE_FIXED_WING);
  */
 PARAM_DEFINE_INT32(MAV_USEHILGPS, 0);
 
+/*Custom binded device id.*/
+PARAM_DEFINE_INT32(MAV_BINDED_DEVICE_ID, 1);
+
 mavlink_system_t mavlink_system = {
 	100,
 	50,
