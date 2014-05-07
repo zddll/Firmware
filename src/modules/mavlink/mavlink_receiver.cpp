@@ -124,26 +124,6 @@ MavlinkReceiver::~MavlinkReceiver()
 void
 MavlinkReceiver::handle_message(mavlink_message_t *msg)
 {
-	int32_t binded_id;
-	param_get(param_find("MAV_BINDED_ID"), &binded_id);
-
-    if (_mavlink_fd == -1) {
-        _mavlink_fd = open(MAVLINK_LOG_DEVICE, 0);
-    }
-
-#ifdef SHOULD_FILTER_MESSAGES
-    bool should_filter = false;
-    if (!_mavlink->get_hil_enabled()) {
-        should_filter = msg->sysid != binded_id;
-    }
-
-    if (should_filter) {
-        /* TODO: seems like packets are currently comming from multiple systems*/
-        _mavlink->set_has_received_messages(false);
-        mavlink_log_info(_mavlink_fd, "Unauthorized system id: %d", msg->sysid);
-        return;
-    }
-#endif
 
     switch (msg->msgid) {
 	case MAVLINK_MSG_ID_COMMAND_LONG:
@@ -920,6 +900,7 @@ MavlinkReceiver::handle_message_hil_state_quaternion(mavlink_message_t *msg)
 void
 MavlinkReceiver::handle_message_airdog_heartbeat(mavlink_message_t *msg)
 {
+	mavlink_log_info(_mavlink->get_mavlink_fd(), "heartbeat %d", msg->sysid);
     if(msg->sysid == 1) { //SIMIS TODO get sysid from linked airdog
 		mavlink_heartbeat_t heartbeat;
 		mavlink_msg_heartbeat_decode(msg, &heartbeat);

@@ -23,6 +23,8 @@
 
 #include <mavlink/mavlink_log.h>
 
+#define LONG_PRESS_TIME 150
+
 enum REMOTE_BUTTON_STATE {
 	PAUSE=1,
 	START=2,
@@ -66,8 +68,6 @@ static struct airdog_app_s airdog_data;
 static bool airdog_running = false;
 static orb_advert_t cmd_pub = -1;
 static orb_advert_t cmd_log_start = -1;
-
-static const int LONG_PRESS_TIME = 150;
 
 __EXPORT int airdog_main(int argc, char *argv[]);
 
@@ -231,6 +231,15 @@ void airdog_start(FAR void *arg)
 	priv->button3.pin = 2;
 	priv->button3.state = PAUSE;
 
+	priv->button4.pin = 2;
+	priv->button4.state = PAUSE;
+
+	priv->button5.pin = 2;
+	priv->button5.state = PAUSE;
+
+	priv->button6.pin = 2;
+	priv->button6.state = PAUSE;
+
 	/* open GPIO device */
 	priv->gpio_fd = open(PX4FMU_DEVICE_PATH, 0);
 	if (priv->gpio_fd < 0) {
@@ -371,7 +380,7 @@ void airdog_cycle(FAR void *arg) {
 	uint32_t gpio_values;
 	ioctl(priv->gpio_fd, GPIO_GET, &gpio_values);
 
-	struct gpio_button_s *(arr[2]) = {&priv->button1, &priv->button2, &priv->button3};
+	struct gpio_button_s *(arr[2]) = {&priv->button1, &priv->button2, &priv->button3, &priv->button4, &priv->button5, &priv->button6};
 
 	for (int i = 0; i < 2; i++) {
 		check_button(arr[i], gpio_values);
