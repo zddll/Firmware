@@ -44,25 +44,30 @@ struct gpio_button_s {
 	enum REMOTE_BUTTON_STATE state;
 	int pin;
 	bool button_pressed;
+	bool long_press;
+	uint64_t time_pressed;
 };
 
 struct airdog_app_s {
 	struct work_s work;
 	uint8_t base_mode;
 	int gpio_fd;
-	int inputs;
-	struct gpio_button_s takeoff_button;
-	struct gpio_button_s follow_button;
-    struct gpio_button_s log_path_button;
+	struct gpio_button_s button1;
+	struct gpio_button_s button2;
+	struct gpio_button_s button3;
+	struct gpio_button_s button4;
+	struct gpio_button_s button5;
+	struct gpio_button_s button6;
 	struct airdog_status_s airdog_status;
 	int airdog_status_sub;
-	int current_custom_mode;
 };
 
 static struct airdog_app_s airdog_data;
 static bool airdog_running = false;
 static orb_advert_t cmd_pub = -1;
 static orb_advert_t cmd_log_start = -1;
+
+static const int LONG_PRESS_TIME = 150;
 
 __EXPORT int airdog_main(int argc, char *argv[]);
 
@@ -71,6 +76,9 @@ __EXPORT int airdog_main(int argc, char *argv[]);
  */
 void airdog_cycle(FAR void *arg);
 void airdog_start(FAR void *arg);
+
+void check_button(struct gpio_button_s *button, uint32_t gpio_values);
+void button_pressed(struct gpio_button_s *button, bool long_press);
 
 void send_set_mode(uint8_t base_mode, uint8_t custom_main_mode);
 void send_set_state(uint8_t state);
@@ -212,21 +220,16 @@ void airdog_start(FAR void *arg)
 	FAR struct airdog_app_s *priv = (FAR struct airdog_app_s *)arg;
 
 /*	priv->base_mode = MAV_MODE_FLAG_SAFETY_ARMED | MAV_MODE_FLAG_CUSTOM_MODE_ENABLED | MAV_MODE_FLAG_HIL_ENABLED;*/
+
 	priv->base_mode = MAV_MODE_FLAG_SAFETY_ARMED | MAV_MODE_FLAG_CUSTOM_MODE_ENABLED;
-	priv->takeoff_button.pin = 0;
-	priv->takeoff_button.button_pressed = false;
-	priv->takeoff_button.state = PAUSE;
+	priv->button1.pin = 0;
+	priv->button1.state = PAUSE;
 
-	priv->follow_button.pin = 1;
-	priv->follow_button.button_pressed = false;
-	priv->follow_button.state = START;
+	priv->button2.pin = 1;
+	priv->button2.state = START;
 
-    priv->log_path_button.pin = 3;
-    priv->log_path_button.button_pressed = false;
-    priv->log_path_button.state = PAUSE;
-
-	priv->inputs = priv->follow_button.pin + 1 + priv->takeoff_button.pin + 1 + priv->log_path_button.pin + 1;
-	
+	priv->button3.pin = 2;
+	priv->button3.state = PAUSE;
 
 	/* open GPIO device */
 	priv->gpio_fd = open(PX4FMU_DEVICE_PATH, 0);
@@ -236,7 +239,7 @@ void airdog_start(FAR void *arg)
 		airdog_running = false;
 		return;
 	}
-	ioctl(priv->gpio_fd, GPIO_SET_INPUT, priv->inputs);
+	ioctl(priv->gpio_fd, GPIO_SET_INPUT, 63);
 
 	/* initialize vehicle status structure */
 	memset(&priv->airdog_status, 0, sizeof(priv->airdog_status));
@@ -258,6 +261,96 @@ void airdog_start(FAR void *arg)
     mavlink_log_info(_mavlink_fd, "[mpc] started");
 };
 
+void check_button(struct gpio_button_s *button, uint32_t gpio_values) {
+
+	if (!(gpio_values & (1 << button->pin))) {
+		uint64_t now = hrt_absolute_time();
+		float elapsed = (now - button->time_pressed) / 10000;
+
+		if (button->button_pressed == false){
+			button->button_pressed = true;
+			button->time_pressed = now;
+		} else if (button->button_pressed & !button->long_press & elapsed > LONG_PRESS_TIME) {
+			warnx("long press button %d", button->pin + 1);
+			button_pressed(button, true);
+			button->long_press = true;
+		}
+	} else {
+		if (button->button_pressed == true){
+			if (!button->long_press)
+			{
+				warnx("short press button %d", button->pin + 1);
+				button_pressed(button, false);
+			}
+			button->button_pressed = false;
+			button->long_press = false;
+		}
+	}
+};
+
+void button_pressed(struct gpio_button_s *button, bool long_press) {
+	switch(button->pin)
+	{
+		case 0:
+			if (long_press)
+			{
+				if (button->state == PAUSE)
+            	{
+                	send_set_state(NAV_STATE_TAKEOFF);
+
+                	button->state = START;
+            	} else {
+                	send_set_state(NAV_STATE_LAND);
+                	button->state = PAUSE;
+            	}
+			} else {
+				if (button->state == PAUSE)
+				{
+					send_set_state(NAV_STATE_AFOLLOW);
+					button->state = START;
+				} else {
+					send_set_state(NAV_STATE_LOITER);
+					button->state = PAUSE;
+				}
+			}
+			break;
+		case 1:
+			if (long_press)
+			{
+				if (button->state == PAUSE)
+				{
+					send_set_mode(MAV_MODE_FLAG_SAFETY_ARMED | MAV_MODE_FLAG_CUSTOM_MODE_ENABLED, PX4_CUSTOM_MAIN_MODE_AUTO);
+					button->state = START;
+				} else {
+					send_set_mode(MAV_MODE_FLAG_CUSTOM_MODE_ENABLED, PX4_CUSTOM_MAIN_MODE_AUTO);
+					button->state = PAUSE;
+				}
+			}
+			break;
+		case 2:
+			if (button->state == PAUSE)
+            {
+                mavlink_log_info(_mavlink_fd, "Logging should start");
+                send_record_path_cmd(true);
+                button->state = START;
+            } else {
+                mavlink_log_info(_mavlink_fd, "Logging should stop");
+                send_record_path_cmd(false);
+                button->state = PAUSE;
+            }
+			break;
+		case 3:
+			warnx("fourth");
+			break;
+		case 4:
+			warnx("fifth");
+			break;
+		case 5:
+			warnx("sixth");
+			break;
+	}
+};
+
 void airdog_cycle(FAR void *arg) {
 
 	FAR struct airdog_app_s *priv = (FAR struct airdog_app_s *)arg;
@@ -267,6 +360,7 @@ void airdog_cycle(FAR void *arg) {
 
 	if (updated) {
 		orb_copy(ORB_ID(airdog_status), priv->airdog_status_sub, &priv->airdog_status);
+		mavlink_log_info(_mavlink_fd, "test");
 	}
 	/*warnx("testing: %d", priv->airdog_status.custom_mode);*/
 	union px4_custom_mode custom_mode;
@@ -276,72 +370,11 @@ void airdog_cycle(FAR void *arg) {
 	/* check the GPIO */
 	uint32_t gpio_values;
 	ioctl(priv->gpio_fd, GPIO_GET, &gpio_values);
-    if (!(gpio_values & (1 << priv->follow_button.pin))) {
-		if (priv->follow_button.button_pressed == false){
-		    mavlink_log_info(_mavlink_fd, "custom mode %d data %d", priv->airdog_status.custom_mode, custom_mode.data);
-		    mavlink_log_info(_mavlink_fd, "follow button pressed %d", custom_mode.sub_mode);
-			if (priv->follow_button.state == PAUSE)
-			{
-				send_set_state(NAV_STATE_AFOLLOW);
-				priv->follow_button.state = START;
-			} else {
-				send_set_state(NAV_STATE_LOITER);
-				priv->follow_button.state = PAUSE;
-			}
-			
-			priv->follow_button.button_pressed = true;
-		}
-	} else {
-		if (priv->follow_button.button_pressed == true){
-			mavlink_log_info(_mavlink_fd, "follow button let go");
-			priv->follow_button.button_pressed = false;
-		}
-	}
-	if (!(gpio_values & (1 << priv->takeoff_button.pin))) {
-        if (priv->takeoff_button.button_pressed == false){
-            mavlink_log_info(_mavlink_fd, "takeoff button pressed %d", priv->current_custom_mode);
 
-            if (priv->takeoff_button.state == PAUSE)
-            {
-                send_set_mode(priv->base_mode, PX4_CUSTOM_MAIN_MODE_AUTO);
+	struct gpio_button_s *(arr[2]) = {&priv->button1, &priv->button2, &priv->button3};
 
-                priv->takeoff_button.state = START;
-            } else {
-                send_set_state(NAV_STATE_TAKEOFF);
-                priv->takeoff_button.state = PAUSE;
-            }
-
-			priv->takeoff_button.button_pressed = true;
-		}
-	} else {
-		if (priv->takeoff_button.button_pressed == true){
-			mavlink_log_info(_mavlink_fd, "takeoff button let go");
-			priv->takeoff_button.button_pressed = false;
-		}
-	}
- 
-    if (!(gpio_values & (1 << priv->log_path_button.pin))) {
-        if (priv->log_path_button.button_pressed == false){
-            mavlink_log_info(_mavlink_fd, "log path button pressed %d", priv->current_custom_mode);
-
-            if (priv->log_path_button.state == PAUSE)
-            {
-                mavlink_log_info(_mavlink_fd, "Logging should start");
-                send_record_path_cmd(true);
-                priv->log_path_button.state = START;
-            } else {
-                mavlink_log_info(_mavlink_fd, "Logging should stop");
-                send_record_path_cmd(false);
-                priv->log_path_button.state = PAUSE;
-            }
-
-			priv->log_path_button.button_pressed = true;
-		}
-	} else {
-		if (priv->log_path_button.button_pressed == true){
-			mavlink_log_info(_mavlink_fd, "log path button let go");
-			priv->log_path_button.button_pressed = false;
-		}
+	for (int i = 0; i < 2; i++) {
+		check_button(arr[i], gpio_values);
 	}
 
 	/* repeat cycle at 10 Hz */
@@ -350,6 +383,6 @@ void airdog_cycle(FAR void *arg) {
 
 	} else {
 		/* switch off LED on stop */
-		ioctl(priv->gpio_fd, GPIO_CLEAR, priv->inputs);
+		ioctl(priv->gpio_fd, GPIO_CLEAR, 63);
 	}
 }
