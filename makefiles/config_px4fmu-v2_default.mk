@@ -96,6 +96,7 @@ MODULES		+= modules/mc_pos_control
 # Logging
 #
 MODULES		+= modules/sdlog2
+MODULES		+= modules/sdlog2_lite
 
 #
 # Unit tests

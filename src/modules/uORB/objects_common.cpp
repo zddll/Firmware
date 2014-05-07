@@ -205,3 +205,6 @@ ORB_DEFINE(estimator_status, struct estimator_status_report);
 
 #include "topics/airdog_status.h"
 ORB_DEFINE(airdog_status, struct airdog_status_s);
+
+#include "topics/airdog_path_log.h"
+ORB_DEFINE(airdog_path_log, struct airdog_path_log_s);

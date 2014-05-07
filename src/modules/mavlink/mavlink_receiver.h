@@ -70,7 +70,7 @@
 #include <uORB/topics/battery_status.h>
 #include <uORB/topics/airdog_status.h>
 
-#define SHOULD_FILTER_MESSAGES 1;
+//#define SHOULD_FILTER_MESSAGES 1;
 
 class Mavlink;
 

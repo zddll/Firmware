@@ -920,7 +920,6 @@ MavlinkReceiver::handle_message_hil_state_quaternion(mavlink_message_t *msg)
 void
 MavlinkReceiver::handle_message_airdog_heartbeat(mavlink_message_t *msg)
 {
-	mavlink_log_info(_mavlink_fd, "Message received: %d", msg);
     if(msg->sysid == 1) { //SIMIS TODO get sysid from linked airdog
 		mavlink_heartbeat_t heartbeat;
 		mavlink_msg_heartbeat_decode(msg, &heartbeat);

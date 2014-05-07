@@ -15,6 +15,7 @@
 #include <uORB/topics/vehicle_status.h>
 #include <uORB/topics/debug_key_value.h>
 #include <uORB/topics/airdog_status.h>
+#include <uORB/topics/airdog_path_log.h>
 
 #include <drivers/drv_gpio.h>
 #include <commander/px4_custom_mode.h>
@@ -52,6 +53,7 @@ struct airdog_app_s {
 	int inputs;
 	struct gpio_button_s takeoff_button;
 	struct gpio_button_s follow_button;
+    struct gpio_button_s log_path_button;
 	struct airdog_status_s airdog_status;
 	int airdog_status_sub;
 	int current_custom_mode;
@@ -60,6 +62,7 @@ struct airdog_app_s {
 static struct airdog_app_s airdog_data;
 static bool airdog_running = false;
 static orb_advert_t cmd_pub = -1;
+static orb_advert_t cmd_log_start = -1;
 
 __EXPORT int airdog_main(int argc, char *argv[]);
 
@@ -188,6 +191,22 @@ void send_set_state(enum NAV_STATE state) {
 	}
 }
 
+void send_record_path_cmd(bool start)
+{
+    struct airdog_path_log_s cmd;
+	memset(&cmd, 0, sizeof(cmd));
+
+	/* fill command */
+	cmd.start = start;
+    cmd.stop = !start;
+
+	if (cmd_pub < 0) {
+		cmd_pub = orb_advertise(ORB_ID(airdog_path_log), &cmd);
+	} else {
+		orb_publish(ORB_ID(airdog_path_log), cmd_pub, &cmd);
+	}
+}
+
 void airdog_start(FAR void *arg)
 {
 	FAR struct airdog_app_s *priv = (FAR struct airdog_app_s *)arg;
@@ -202,7 +221,11 @@ void airdog_start(FAR void *arg)
 	priv->follow_button.button_pressed = false;
 	priv->follow_button.state = START;
 
-	priv->inputs = priv->follow_button.pin + 1 + priv->takeoff_button.pin + 1;
+    priv->log_path_button.pin = 3;
+    priv->log_path_button.button_pressed = false;
+    priv->log_path_button.state = PAUSE;
+
+	priv->inputs = priv->follow_button.pin + 1 + priv->takeoff_button.pin + 1 + priv->log_path_button.pin + 1;
 	
 
 	/* open GPIO device */
@@ -296,6 +319,31 @@ void airdog_cycle(FAR void *arg) {
 			priv->takeoff_button.button_pressed = false;
 		}
 	}
+ 
+    if (!(gpio_values & (1 << priv->log_path_button.pin))) {
+        if (priv->log_path_button.button_pressed == false){
+            mavlink_log_info(_mavlink_fd, "log path button pressed %d", priv->current_custom_mode);
+
+            if (priv->log_path_button.state == PAUSE)
+            {
+                mavlink_log_info(_mavlink_fd, "Logging should start");
+                send_record_path_cmd(true);
+                priv->log_path_button.state = START;
+            } else {
+                mavlink_log_info(_mavlink_fd, "Logging should stop");
+                send_record_path_cmd(false);
+                priv->log_path_button.state = PAUSE;
+            }
+
+			priv->log_path_button.button_pressed = true;
+		}
+	} else {
+		if (priv->log_path_button.button_pressed == true){
+			mavlink_log_info(_mavlink_fd, "log path button let go");
+			priv->log_path_button.button_pressed = false;
+		}
+	}
+
 	/* repeat cycle at 10 Hz */
 	if (airdog_running) {
 		work_queue(LPWORK, &priv->work, airdog_cycle, priv, USEC2TICK(100000));
