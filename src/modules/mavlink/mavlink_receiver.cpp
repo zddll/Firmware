@@ -158,7 +158,7 @@ MavlinkReceiver::handle_message(mavlink_message_t *msg)
 		handle_message_global_position_time(msg);
 		break;
 	case MAVLINK_MSG_ID_HEARTBEAT:
-		handle_message_airdog_heartbeat(msg);
+		handle_message_drone_heartbeat(msg);
 		break;
 
 	default:
@@ -898,9 +898,8 @@ MavlinkReceiver::handle_message_hil_state_quaternion(mavlink_message_t *msg)
 }
 
 void
-MavlinkReceiver::handle_message_airdog_heartbeat(mavlink_message_t *msg)
+MavlinkReceiver::handle_message_drone_heartbeat(mavlink_message_t *msg)
 {
-	mavlink_log_info(_mavlink->get_mavlink_fd(), "heartbeat %d", msg->sysid);
     if(msg->sysid == 1) { //SIMIS TODO get sysid from linked airdog
 		mavlink_heartbeat_t heartbeat;
 		mavlink_msg_heartbeat_decode(msg, &heartbeat);
@@ -908,10 +907,14 @@ MavlinkReceiver::handle_message_airdog_heartbeat(mavlink_message_t *msg)
 		struct airdog_status_s status;
 		memset(&status, 0, sizeof(status));
 
-		/*status.timestamp = hrt_absolute_time();*/
-		status.custom_mode = heartbeat.custom_mode;
+		union px4_custom_mode custom_mode;
+		custom_mode.data = heartbeat.custom_mode;
+
+		status.main_mode = custom_mode.main_mode;
+		status.sub_mode = custom_mode.sub_mode;
 		status.base_mode = heartbeat.base_mode;
 		status.system_status = heartbeat.system_status;
+		status.timestamp = hrt_absolute_time();
 
 		if (_airdog_status_pub < 0) {
 			_airdog_status_pub = orb_advertise(ORB_ID(airdog_status), &status);

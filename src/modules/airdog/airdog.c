@@ -60,7 +60,6 @@ struct airdog_app_s {
 	struct gpio_button_s button4;
 	struct gpio_button_s button5;
 	struct gpio_button_s button6;
-	struct airdog_status_s airdog_status;
 	int airdog_status_sub;
 };
 
@@ -88,6 +87,10 @@ void send_set_state(uint8_t state);
  */
 static void usage(const char *reason);
 static int _mavlink_fd;
+bool _hil;
+bool _armed;
+bool _drone_active;
+struct airdog_status_s _airdog_status;
 
 static void
 usage(const char *reason)
@@ -231,13 +234,13 @@ void airdog_start(FAR void *arg)
 	priv->button3.pin = 2;
 	priv->button3.state = PAUSE;
 
-	priv->button4.pin = 2;
+	priv->button4.pin = 3;
 	priv->button4.state = PAUSE;
 
-	priv->button5.pin = 2;
+	priv->button5.pin = 4;
 	priv->button5.state = PAUSE;
 
-	priv->button6.pin = 2;
+	priv->button6.pin = 5;
 	priv->button6.state = PAUSE;
 
 	/* open GPIO device */
@@ -251,7 +254,7 @@ void airdog_start(FAR void *arg)
 	ioctl(priv->gpio_fd, GPIO_SET_INPUT, 63);
 
 	/* initialize vehicle status structure */
-	memset(&priv->airdog_status, 0, sizeof(priv->airdog_status));
+	memset(&_airdog_status, 0, sizeof(_airdog_status));
 
 	/* subscribe to vehicle status topic */
 	priv->airdog_status_sub = orb_subscribe(ORB_ID(airdog_status));
@@ -301,40 +304,47 @@ void button_pressed(struct gpio_button_s *button, bool long_press) {
 	switch(button->pin)
 	{
 		case 0:
-			if (long_press)
+			if (!_armed)
 			{
-				if (button->state == PAUSE)
-            	{
-                	send_set_state(NAV_STATE_TAKEOFF);
-
-                	button->state = START;
-            	} else {
-                	send_set_state(NAV_STATE_LAND);
-                	button->state = PAUSE;
-            	}
-			} else {
-				if (button->state == PAUSE)
+				if (long_press)
 				{
-					send_set_state(NAV_STATE_AFOLLOW);
-					button->state = START;
+					uint8_t base_mode = MAV_MODE_FLAG_SAFETY_ARMED | MAV_MODE_FLAG_CUSTOM_MODE_ENABLED;
+					if (_hil)
+					{
+						base_mode |= MAV_MODE_FLAG_HIL_ENABLED;
+					}
+					send_set_mode(base_mode, PX4_CUSTOM_MAIN_MODE_AUTO);
+					//while (_airdog_status.main_mode != PX4_CUSTOM_MAIN_MODE_AUTO) {
+					//	System.Threading.Thread.Sleep(250); // pause for 1/4 second;
+					//};
+					sleep(5);
+					send_set_state(NAV_STATE_TAKEOFF);
+				}
+			} else {
+				if (long_press)
+				{
+					send_set_state(NAV_STATE_LAND);
+					//send_set_mode(MAV_MODE_FLAG_CUSTOM_MODE_ENABLED, PX4_CUSTOM_MAIN_MODE_AUTO);
 				} else {
-					send_set_state(NAV_STATE_LOITER);
-					button->state = PAUSE;
+					if (_airdog_status.sub_mode == PX4_CUSTOM_SUB_MODE_AUTO_LOITER)
+					{
+						send_set_state(NAV_STATE_AFOLLOW);
+					} else {
+						send_set_state(NAV_STATE_LOITER);
+					}
 				}
 			}
 			break;
 		case 1:
 			if (long_press)
-			{
-				if (button->state == PAUSE)
 				{
-					send_set_mode(MAV_MODE_FLAG_SAFETY_ARMED | MAV_MODE_FLAG_CUSTOM_MODE_ENABLED, PX4_CUSTOM_MAIN_MODE_AUTO);
-					button->state = START;
+					if (_airdog_status.sub_mode == PX4_CUSTOM_SUB_MODE_AUTO_READY)
+					{
+						send_set_mode(MAV_MODE_FLAG_CUSTOM_MODE_ENABLED, PX4_CUSTOM_MAIN_MODE_AUTO);
+					}
 				} else {
-					send_set_mode(MAV_MODE_FLAG_CUSTOM_MODE_ENABLED, PX4_CUSTOM_MAIN_MODE_AUTO);
-					button->state = PAUSE;
+
 				}
-			}
 			break;
 		case 2:
 			if (button->state == PAUSE)
@@ -368,21 +378,26 @@ void airdog_cycle(FAR void *arg) {
 	orb_check(priv->airdog_status_sub, &updated);
 
 	if (updated) {
-		orb_copy(ORB_ID(airdog_status), priv->airdog_status_sub, &priv->airdog_status);
-		mavlink_log_info(_mavlink_fd, "test");
+		orb_copy(ORB_ID(airdog_status), priv->airdog_status_sub, &_airdog_status);
+		_hil = (_airdog_status.base_mode & MAV_MODE_FLAG_HIL_ENABLED);
+		_armed = (_airdog_status.base_mode & MAV_MODE_FLAG_SAFETY_ARMED);
+		if (_airdog_status.timestamp > 0) //TODO check for when lost signal
+		{
+			_drone_active = true;
+		} else {
+			_drone_active = false;
+		}
 	}
-	/*warnx("testing: %d", priv->airdog_status.custom_mode);*/
-	union px4_custom_mode custom_mode;
-	custom_mode.data = priv->airdog_status.custom_mode;
 	
+	warnx("connected %d, armed %d, hil %d, main mode %d, sub_mode %d",_drone_active, _armed, _hil, _airdog_status.main_mode, _airdog_status.sub_mode);
 
 	/* check the GPIO */
 	uint32_t gpio_values;
 	ioctl(priv->gpio_fd, GPIO_GET, &gpio_values);
 
-	struct gpio_button_s *(arr[2]) = {&priv->button1, &priv->button2, &priv->button3, &priv->button4, &priv->button5, &priv->button6};
+	struct gpio_button_s *(arr[6]) = {&priv->button1, &priv->button2, &priv->button3, &priv->button4, &priv->button5, &priv->button6};
 
-	for (int i = 0; i < 2; i++) {
+	for (int i = 0; i < 6; i++) {
 		check_button(arr[i], gpio_values);
 	}
 

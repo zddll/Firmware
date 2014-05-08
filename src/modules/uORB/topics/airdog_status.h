@@ -46,9 +46,11 @@
 #include "../uORB.h"
 
 struct airdog_status_s {
-	uint32_t custom_mode; ///< A bitfield for use for autopilot-specific flags.
+	uint8_t main_mode;
+	uint8_t sub_mode;
  	uint8_t base_mode; ///< System mode bitfield, see MAV_MODE_FLAGS ENUM in mavlink/include/mavlink_types.h
  	uint8_t system_status; ///< System status flag, see MAV_STATE ENUM
+ 	uint64_t timestamp;
  }; /**< command sent to vehicle */
 
 /**
