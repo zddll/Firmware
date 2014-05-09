@@ -789,7 +789,7 @@ Navigator::task_main()
 						dispatch(EVENT_AFOLLOW_REQUESTED);
 						break;
 
-                    case NAV_STATE_HERE:
+                    case NAV_STATE_COME_HERE:
                         dispatch(EVENT_COME_HERE_REQUESTED);
 
 					default:
@@ -1012,6 +1012,10 @@ Navigator::status()
 		warnx("State: AFOLLOW");
 		break;
 
+    case NAV_STATE_COME_HERE:
+        warnx("State: COME_HERE");
+        break;
+
 	default:
 		warnx("State: Unknown");
 		break;
@@ -1059,7 +1063,7 @@ StateTable::Tran const Navigator::myTable[NAV_STATE_MAX][MAX_EVENT] = {
 		/* EVENT_HOME_POSITION_CHANGED */	{NO_ACTION, NAV_STATE_LOITER},
 		/* EVENT_TAKEOFF REQUESTED */    {ACTION(&Navigator::start_takeoff), NAV_STATE_TAKEOFF},
 		/* EVENT_FOLLOW_REQUESTED */    {ACTION(&Navigator::start_afollow), NAV_STATE_AFOLLOW},
-        /* EVENT_COME_HERE_REQUESTED */    {ACTION(&Navigator::start_come_here), NAV_STATE_HERE},
+        /* EVENT_COME_HERE_REQUESTED */    {ACTION(&Navigator::start_come_here), NAV_STATE_COME_HERE},
 	},
 	{
 		/* NAV_STATE_MISSION */
@@ -1132,18 +1136,18 @@ StateTable::Tran const Navigator::myTable[NAV_STATE_MAX][MAX_EVENT] = {
         /* EVENT_COME_HERE_REQUESTED */    {NO_ACTION, NAV_STATE_AFOLLOW},
 	},
     {
-		/* NAV_STATE_HERE */
-		/* EVENT_NONE_REQUESTED */        {NO_ACTION, NAV_STATE_HERE},
-		/* EVENT_READY_REQUESTED */        {NO_ACTION, NAV_STATE_HERE},
+		/* NAV_STATE_COME_HERE */
+		/* EVENT_NONE_REQUESTED */        {NO_ACTION, NAV_STATE_COME_HERE},
+		/* EVENT_READY_REQUESTED */        {NO_ACTION, NAV_STATE_COME_HERE},
 		/* EVENT_LOITER_REQUESTED */        {ACTION(&Navigator::start_loiter), NAV_STATE_LOITER},
-		/* EVENT_MISSION_REQUESTED */    {NO_ACTION, NAV_STATE_HERE},
-		/* EVENT_RTL_REQUESTED */        {NO_ACTION, NAV_STATE_HERE},
-		/* EVENT_LAND_REQUESTED */        {NO_ACTION, NAV_STATE_HERE},
-		/* EVENT_MISSION_CHANGED */        {NO_ACTION, NAV_STATE_HERE},
-		/* EVENT_HOME_POSITION_CHANGED */    {NO_ACTION, NAV_STATE_HERE},
-		/* EVENT_TAKEOFF REQUESTED */    {NO_ACTION, NAV_STATE_HERE},
-		/* EVENT_AFOLLOW_REQUESTED */    {NO_ACTION, NAV_STATE_HERE},
-        /* EVENT_COME_HERE_REQUESTED */    {NO_ACTION, NAV_STATE_HERE},
+		/* EVENT_MISSION_REQUESTED */    {NO_ACTION, NAV_STATE_COME_HERE},
+		/* EVENT_RTL_REQUESTED */        {NO_ACTION, NAV_STATE_COME_HERE},
+		/* EVENT_LAND_REQUESTED */        {NO_ACTION, NAV_STATE_COME_HERE},
+		/* EVENT_MISSION_CHANGED */        {NO_ACTION, NAV_STATE_COME_HERE},
+		/* EVENT_HOME_POSITION_CHANGED */    {NO_ACTION, NAV_STATE_COME_HERE},
+		/* EVENT_TAKEOFF REQUESTED */    {NO_ACTION, NAV_STATE_COME_HERE},
+		/* EVENT_AFOLLOW_REQUESTED */    {NO_ACTION, NAV_STATE_COME_HERE},
+        /* EVENT_COME_HERE_REQUESTED */    {NO_ACTION, NAV_STATE_COME_HERE},
 	},
 };
 
@@ -1970,12 +1974,14 @@ void
 Navigator::start_come_here()
 {
     if (_vstatus.condition_target_position_valid) {
+        _pos_sp_triplet.current.valid = true;
+        _pos_sp_triplet.previous.valid = false;
+        _pos_sp_triplet.current.type = SETPOINT_TYPE_NORMAL;
         _pos_sp_triplet.current.lat = _target_lat;
+        _reset_loiter_pos = true;
         _pos_sp_triplet.current.lon = _target_lon;
         _pos_sp_triplet.current.alt = _global_pos.alt;
         _pos_sp_triplet.current.yaw = get_bearing_to_next_waypoint(_global_pos.lat, _global_pos.lon, _target_pos.lat, _target_pos.lon);
-        _pos_sp_triplet.current.type = SETPOINT_TYPE_NORMAL;
-        _pos_sp_triplet.previous.valid = false;
 
         _pos_sp_triplet_updated = true;
         mavlink_log_info(_mavlink_fd, "[nav] comming to target with lat: %.1f and lon %.1f", _target_lat, _target_lon);

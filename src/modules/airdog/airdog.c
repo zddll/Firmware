@@ -361,7 +361,7 @@ void button_pressed(struct gpio_button_s *button, bool long_press) {
 		case 3:
             if (button->state == PAUSE)
             {
-                send_set_state(NAV_STATE_HERE);
+                send_set_state(NAV_STATE_COME_HERE);
                 button->state = START;
             } else {
                 send_set_state(NAV_STATE_LOITER);
