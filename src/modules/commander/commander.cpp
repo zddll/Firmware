@@ -487,9 +487,11 @@ bool handle_command(struct vehicle_status_s *status, const struct safety_s *safe
 
 	case VEHICLE_CMD_NAV_SET_STATE: {
         uint8_t state = (uint8_t) cmd->param1;
-        mavlink_log_info(mavlink_fd, "commander change state to %d", state);
+        uint8_t direction = (uint8_t) cmd->param2;
+        mavlink_log_info(mavlink_fd, "commander change state to %d, direction %d", state, direction);
         status->set_nav_state = state;
         status->set_nav_state_timestamp = hrt_absolute_time();
+        status->auto_move_direction = direction;
         //TODO check if really changed
         result = VEHICLE_CMD_RESULT_ACCEPTED;
         break;

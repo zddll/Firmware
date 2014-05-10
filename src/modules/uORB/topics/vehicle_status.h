@@ -138,6 +138,16 @@ enum VEHICLE_BATTERY_WARNING {
 	VEHICLE_BATTERY_WARNING_CRITICAL	/**< alerting of critical voltage */
 };
 
+enum AUTO_MOVE_DIRECTION {
+	MOVE_NONE = 0,
+	MOVE_UP,
+	MOVE_DOWN,
+	MOVE_LEFT,
+	MOVE_RIGHT,
+	MOVE_CLOSER,
+	MOVE_FARTHER
+};
+
 /**
  * @addtogroup topics
  * @{
@@ -157,6 +167,7 @@ struct vehicle_status_s {
 	main_state_t main_state;				/**< main state machine */
 	unsigned int set_nav_state;	/**< set navigation state machine to specified value */
 	uint64_t set_nav_state_timestamp;	/**< timestamp of latest change of set_nav_state */
+	uint8_t auto_move_direction; /**< direction to move when NAV_STATE_MOVE requested */
 	arming_state_t arming_state;			/**< current arming state */
 	hil_state_t hil_state;					/**< current hil state */
 	failsafe_state_t failsafe_state;		/**< current failsafe state */

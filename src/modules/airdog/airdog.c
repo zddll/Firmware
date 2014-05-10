@@ -80,7 +80,7 @@ void check_button(struct gpio_button_s *button, uint32_t gpio_values);
 void button_pressed(struct gpio_button_s *button, bool long_press);
 
 void send_set_mode(uint8_t base_mode, uint8_t custom_main_mode);
-void send_set_state(uint8_t state);
+void send_set_state(uint8_t state, uint8_t direction);
 
 /**
  * Print the correct usage.
@@ -175,7 +175,7 @@ void send_set_mode(uint8_t base_mode, enum PX4_CUSTOM_MAIN_MODE custom_main_mode
 	}
 }
 
-void send_set_state(enum NAV_STATE state) {
+void send_set_state(enum NAV_STATE state, enum AUTO_MOVE_DIRECTION direction) {
 	/* TODO this is very ugly, need to rewrite app to C++ and use class fields instead of static var */
 	struct vehicle_command_s cmd;
 	memset(&cmd, 0, sizeof(cmd));
@@ -187,6 +187,7 @@ void send_set_state(enum NAV_STATE state) {
 	/* fill command */
 	cmd.command = VEHICLE_CMD_NAV_SET_STATE;
 	cmd.param1 = state;
+	cmd.param2 = direction;
 	cmd.confirmation = false;
 	cmd.source_system = status.system_id;
 	cmd.source_component = status.component_id;
@@ -304,7 +305,7 @@ void button_pressed(struct gpio_button_s *button, bool long_press) {
 	switch(button->pin)
 	{
 		case 0:
-			if (!_armed)
+			if (!_armed & _drone_active)
 			{
 				if (long_press)
 				{
@@ -318,61 +319,59 @@ void button_pressed(struct gpio_button_s *button, bool long_press) {
 					//	System.Threading.Thread.Sleep(250); // pause for 1/4 second;
 					//};
 					sleep(5);
-					send_set_state(NAV_STATE_TAKEOFF);
+					send_set_state(NAV_STATE_TAKEOFF, MOVE_NONE);
 				}
+			} else if (!_drone_active) {
+				if (button->state == PAUSE)
+            	{
+                	mavlink_log_info(_mavlink_fd, "Logging should start");
+                	send_record_path_cmd(true);
+               		button->state = START;
+            	} else {
+              		mavlink_log_info(_mavlink_fd, "Logging should stop");
+					send_record_path_cmd(false);
+              		button->state = PAUSE;
+            	}
 			} else {
 				if (long_press)
 				{
-					send_set_state(NAV_STATE_LAND);
+					send_set_state(NAV_STATE_LAND, MOVE_NONE);
 					//send_set_mode(MAV_MODE_FLAG_CUSTOM_MODE_ENABLED, PX4_CUSTOM_MAIN_MODE_AUTO);
 				} else {
 					if (_airdog_status.sub_mode == PX4_CUSTOM_SUB_MODE_AUTO_LOITER)
 					{
-						send_set_state(NAV_STATE_AFOLLOW);
+						send_set_state(NAV_STATE_AFOLLOW, MOVE_NONE);
 					} else {
-						send_set_state(NAV_STATE_LOITER);
+						send_set_state(NAV_STATE_LOITER, MOVE_NONE);
 					}
 				}
 			}
 			break;
 		case 1:
 			if (long_press)
-				{
-					if (_airdog_status.sub_mode == PX4_CUSTOM_SUB_MODE_AUTO_READY)
-					{
-						send_set_mode(MAV_MODE_FLAG_CUSTOM_MODE_ENABLED, PX4_CUSTOM_MAIN_MODE_AUTO);
-					}
-				} else {
-
-				}
+			{
+				send_set_state(NAV_STATE_COME_HERE, MOVE_NONE);
+			}
 			break;
 		case 2:
-			if (button->state == PAUSE)
-            {
-                mavlink_log_info(_mavlink_fd, "Logging should start");
-                send_record_path_cmd(true);
-                button->state = START;
-            } else {
-                mavlink_log_info(_mavlink_fd, "Logging should stop");
-                send_record_path_cmd(false);
-                button->state = PAUSE;
-            }
+			send_set_state(NAV_STATE_MOVE, MOVE_UP);
 			break;
 		case 3:
-            if (button->state == PAUSE)
-            {
-                send_set_state(NAV_STATE_COME_HERE);
-                button->state = START;
-            } else {
-                send_set_state(NAV_STATE_LOITER);
-                button->state = PAUSE;
-            }
+            send_set_state(NAV_STATE_MOVE, MOVE_DOWN);
 			break;
 		case 4:
-			warnx("fifth");
+			send_set_state(NAV_STATE_MOVE, MOVE_LEFT);
 			break;
 		case 5:
-			warnx("sixth");
+			if (long_press)
+			{
+				if (_airdog_status.sub_mode == PX4_CUSTOM_SUB_MODE_AUTO_READY)
+				{
+					send_set_mode(MAV_MODE_FLAG_CUSTOM_MODE_ENABLED, PX4_CUSTOM_MAIN_MODE_AUTO);
+				}
+			} else {
+				send_set_state(NAV_STATE_MOVE, MOVE_RIGHT);
+			}
 			break;
 	}
 };

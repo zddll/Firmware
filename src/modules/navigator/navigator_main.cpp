@@ -251,6 +251,7 @@ private:
 		EVENT_TAKEOFF_REQUESTED,
 		EVENT_AFOLLOW_REQUESTED,
         EVENT_COME_HERE_REQUESTED,
+        EVENT_MOVE_REQUESTED,
 		MAX_EVENT
 	};
 
@@ -338,6 +339,7 @@ private:
 	void		start_afollow();
 	void		start_takeoff();
     void        start_come_here();
+    void		start_move();
 
 	/**
 	 * Fork for state transitions
@@ -482,6 +484,7 @@ Navigator::Navigator() :
 	nav_states_str[6] = "TAKEOFF";
 	nav_states_str[7] = "AFOLLOW";
     nav_states_str[8] = "COME_HERE";
+    nav_states_str[9] = "MOVE";
 
 	_afollow_offset.zero();
 	_afollow_offset(2) = -20.0f;
@@ -792,6 +795,9 @@ Navigator::task_main()
                     case NAV_STATE_COME_HERE:
                         dispatch(EVENT_COME_HERE_REQUESTED);
 
+                    case NAV_STATE_MOVE:
+                        dispatch(EVENT_MOVE_REQUESTED);
+
 					default:
 						warnx("ERROR: Requested navigation state not supported");
 						break;
@@ -1036,6 +1042,7 @@ StateTable::Tran const Navigator::myTable[NAV_STATE_MAX][MAX_EVENT] = {
 		/* EVENT_TAKEOFF REQUESTED */    {ACTION(&Navigator::start_takeoff), NAV_STATE_TAKEOFF},
 		/* EVENT_FOLLOW_REQUESTED */    {ACTION(&Navigator::start_afollow), NAV_STATE_AFOLLOW},
         /* EVENT_COME_HERE_REQUESTED */    {NO_ACTION, NAV_STATE_NONE},
+        /* EVENT_MOVE_REQUESTED */    {NO_ACTION, NAV_STATE_NONE},
 	},
 	{
 		/* NAV_STATE_READY */
@@ -1050,6 +1057,7 @@ StateTable::Tran const Navigator::myTable[NAV_STATE_MAX][MAX_EVENT] = {
 		/* EVENT_TAKEOFF REQUESTED */    {ACTION(&Navigator::start_takeoff), NAV_STATE_TAKEOFF},
 		/* EVENT_FOLLOW_REQUESTED */    {ACTION(&Navigator::start_afollow), NAV_STATE_AFOLLOW},
         /* EVENT_COME_HERE_REQUESTED */    {NO_ACTION, NAV_STATE_READY},
+        /* EVENT_MOVE_REQUESTED */    {NO_ACTION, NAV_STATE_READY},
 	},
 	{
 		/* NAV_STATE_LOITER */
@@ -1064,6 +1072,7 @@ StateTable::Tran const Navigator::myTable[NAV_STATE_MAX][MAX_EVENT] = {
 		/* EVENT_TAKEOFF REQUESTED */    {ACTION(&Navigator::start_takeoff), NAV_STATE_TAKEOFF},
 		/* EVENT_FOLLOW_REQUESTED */    {ACTION(&Navigator::start_afollow), NAV_STATE_AFOLLOW},
         /* EVENT_COME_HERE_REQUESTED */    {ACTION(&Navigator::start_come_here), NAV_STATE_COME_HERE},
+        /* EVENT_MOVE_REQUESTED */    {ACTION(&Navigator::start_move), NAV_STATE_MOVE},
 	},
 	{
 		/* NAV_STATE_MISSION */
@@ -1078,6 +1087,7 @@ StateTable::Tran const Navigator::myTable[NAV_STATE_MAX][MAX_EVENT] = {
 		/* EVENT_TAKEOFF REQUESTED */    {NO_ACTION, NAV_STATE_MISSION},
 		/* EVENT_FOLLOW_REQUESTED */    {ACTION(&Navigator::start_afollow), NAV_STATE_AFOLLOW},
         /* EVENT_COME_HERE_REQUESTED */    {NO_ACTION, NAV_STATE_MISSION},
+        /* EVENT_MOVE_REQUESTED */    {NO_ACTION, NAV_STATE_MISSION},
 	},
 	{
 		/* NAV_STATE_RTL */
@@ -1092,6 +1102,7 @@ StateTable::Tran const Navigator::myTable[NAV_STATE_MAX][MAX_EVENT] = {
 		/* EVENT_TAKEOFF REQUESTED */    {NO_ACTION, NAV_STATE_RTL},
 		/* EVENT_FOLLOW_REQUESTED */    {ACTION(&Navigator::start_afollow), NAV_STATE_AFOLLOW},
         /* EVENT_COME_HERE_REQUESTED */    {NO_ACTION, NAV_STATE_RTL},
+        /* EVENT_MOVE_REQUESTED */    {NO_ACTION, NAV_STATE_RTL},
 	},
 	{
 		/* NAV_STATE_LAND */
@@ -1106,6 +1117,7 @@ StateTable::Tran const Navigator::myTable[NAV_STATE_MAX][MAX_EVENT] = {
 		/* EVENT_TAKEOFF REQUESTED */    {NO_ACTION, NAV_STATE_LAND},
 		/* EVENT_FOLLOW_REQUESTED */    {NO_ACTION, NAV_STATE_LAND},
         /* EVENT_COME_HERE_REQUESTED */    {NO_ACTION, NAV_STATE_LAND},
+        /* EVENT_MOVE_REQUESTED */    {NO_ACTION, NAV_STATE_LAND},
 	},
 	{
 		/* NAV_STATE_TAKEOFF */
@@ -1120,6 +1132,7 @@ StateTable::Tran const Navigator::myTable[NAV_STATE_MAX][MAX_EVENT] = {
 		/* EVENT_TAKEOFF REQUESTED */    {NO_ACTION, NAV_STATE_TAKEOFF},
 		/* EVENT_AFOLLOW_REQUESTED */    {ACTION(&Navigator::start_afollow), NAV_STATE_AFOLLOW},
         /* EVENT_COME_HERE_REQUESTED */    {NO_ACTION, NAV_STATE_TAKEOFF},
+        /* EVENT_MOVE_REQUESTED */    {NO_ACTION, NAV_STATE_TAKEOFF},
 	},
 	{
 		/* NAV_STATE_FOLLOW */
@@ -1134,6 +1147,7 @@ StateTable::Tran const Navigator::myTable[NAV_STATE_MAX][MAX_EVENT] = {
 		/* EVENT_TAKEOFF REQUESTED */    {NO_ACTION, NAV_STATE_AFOLLOW},
 		/* EVENT_AFOLLOW_REQUESTED */    {NO_ACTION, NAV_STATE_AFOLLOW},
         /* EVENT_COME_HERE_REQUESTED */    {NO_ACTION, NAV_STATE_AFOLLOW},
+        /* EVENT_MOVE_REQUESTED */    {NO_ACTION, NAV_STATE_AFOLLOW},
 	},
     {
 		/* NAV_STATE_COME_HERE */
@@ -1148,6 +1162,22 @@ StateTable::Tran const Navigator::myTable[NAV_STATE_MAX][MAX_EVENT] = {
 		/* EVENT_TAKEOFF REQUESTED */    {NO_ACTION, NAV_STATE_COME_HERE},
 		/* EVENT_AFOLLOW_REQUESTED */    {NO_ACTION, NAV_STATE_COME_HERE},
         /* EVENT_COME_HERE_REQUESTED */    {NO_ACTION, NAV_STATE_COME_HERE},
+        /* EVENT_MOVE_REQUESTED */    {NO_ACTION, NAV_STATE_COME_HERE},
+	},
+	{
+		/* NAV_STATE_COME_MOVE */
+		/* EVENT_NONE_REQUESTED */        {NO_ACTION, NAV_STATE_MOVE},
+		/* EVENT_READY_REQUESTED */        {NO_ACTION, NAV_STATE_MOVE},
+		/* EVENT_LOITER_REQUESTED */        {ACTION(&Navigator::start_loiter), NAV_STATE_LOITER},
+		/* EVENT_MISSION_REQUESTED */    {NO_ACTION, NAV_STATE_MOVE},
+		/* EVENT_RTL_REQUESTED */        {NO_ACTION, NAV_STATE_MOVE},
+		/* EVENT_LAND_REQUESTED */        {NO_ACTION, NAV_STATE_MOVE},
+		/* EVENT_MISSION_CHANGED */        {NO_ACTION, NAV_STATE_MOVE},
+		/* EVENT_HOME_POSITION_CHANGED */    {NO_ACTION, NAV_STATE_MOVE},
+		/* EVENT_TAKEOFF REQUESTED */    {NO_ACTION, NAV_STATE_MOVE},
+		/* EVENT_AFOLLOW_REQUESTED */    {NO_ACTION, NAV_STATE_MOVE},
+        /* EVENT_COME_HERE_REQUESTED */    {NO_ACTION, NAV_STATE_MOVE},
+        /* EVENT_MOVE_REQUESTED */    {NO_ACTION, NAV_STATE_MOVE},
 	},
 };
 
@@ -1986,6 +2016,40 @@ Navigator::start_come_here()
         _pos_sp_triplet_updated = true;
         mavlink_log_info(_mavlink_fd, "[nav] comming to target with lat: %.1f and lon %.1f", _target_lat, _target_lon);
     }
+}
+
+void
+Navigator::start_move()
+{
+	math::Vector<3> offset;
+	offset.zero();
+	int alt;
+	uint8_t direction = _vstatus.auto_move_direction;
+	if (direction == MOVE_UP) {
+		alt = 3;
+	} else if (direction == MOVE_DOWN) {
+		alt = -3;
+	} else if (direction == MOVE_LEFT) {
+//		offset(2) = -1;
+	} else if (direction == MOVE_RIGHT) {
+//		offset(2) = -1;
+	} else if (direction == MOVE_CLOSER) {
+//		offset(2) = -1;
+	} else if (direction == MOVE_FARTHER) {
+//		offset(2) = -1;
+	}
+
+	_reset_loiter_pos = true;
+	_pos_sp_triplet.current.valid = true;
+    _pos_sp_triplet.previous.valid = false;
+    _pos_sp_triplet.current.type = SETPOINT_TYPE_NORMAL;
+    _pos_sp_triplet.current.alt = _global_pos.alt + alt;
+    _pos_sp_triplet.current.yaw = NAN;
+	add_vector_to_global_position(
+				_global_pos.lat, _global_pos.lon,
+				offset(0), offset(1),
+				&_pos_sp_triplet.current.lat, &_pos_sp_triplet.current.lon);
+	mavlink_log_info(_mavlink_fd, "current alt %d, desired alt %d", _global_pos.alt, _pos_sp_triplet.current.alt)
 }
 
 
