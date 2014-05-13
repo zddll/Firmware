@@ -23,6 +23,8 @@
 
 #include <mavlink/mavlink_log.h>
 
+#include "i2c_helper.h"
+
 #define LONG_PRESS_TIME 150
 
 enum REMOTE_BUTTON_STATE {
@@ -142,6 +144,11 @@ int airdog_main(int argc, char *argv[])
 		}
 		exit(0);
 	}
+
+    if (!strcmp(argv[1], "i2c")) {
+        int hex = strtol(argv[2], NULL, 16);
+        start_listener(0x20);
+    }
 
 	usage("unrecognized command");
 	exit(1);
