@@ -16,6 +16,7 @@
 #include <uORB/topics/debug_key_value.h>
 #include <uORB/topics/airdog_status.h>
 #include <uORB/topics/airdog_path_log.h>
+#include <uORB/topics/i2c_button_status.h>
 
 #include <drivers/drv_gpio.h>
 #include <commander/px4_custom_mode.h>
@@ -63,6 +64,7 @@ struct airdog_app_s {
 	struct gpio_button_s button5;
 	struct gpio_button_s button6;
 	int airdog_status_sub;
+    int i2c_button_status_sub;
 };
 
 static struct airdog_app_s airdog_data;
@@ -80,6 +82,7 @@ void airdog_start(FAR void *arg);
 
 void check_button(struct gpio_button_s *button, uint32_t gpio_values);
 void button_pressed(struct gpio_button_s *button, bool long_press);
+void i2c_button_pressed(struct i2c_button_s *button);
 
 void send_set_mode(uint8_t base_mode, uint8_t custom_main_mode);
 void send_set_state(uint8_t state, uint8_t direction);
@@ -266,6 +269,7 @@ void airdog_start(FAR void *arg)
 
 	/* subscribe to vehicle status topic */
 	priv->airdog_status_sub = orb_subscribe(ORB_ID(airdog_status));
+    priv->i2c_button_status_sub = orb_subscribe(ORB_ID(i2c_button_status));
 
 	/* add worker to queue */
 	int ret = work_queue(LPWORK, &priv->work, airdog_cycle, priv, 0);
@@ -279,6 +283,8 @@ void airdog_start(FAR void *arg)
 
     _mavlink_fd = open(MAVLINK_LOG_DEVICE, 0);
     mavlink_log_info(_mavlink_fd, "[mpc] started");
+
+    start_listener(0x20);
 };
 
 void check_button(struct gpio_button_s *button, uint32_t gpio_values) {
@@ -383,6 +389,23 @@ void button_pressed(struct gpio_button_s *button, bool long_press) {
 	}
 };
 
+void i2c_button_pressed(struct i2c_button_s *button)
+{
+    switch(button->pin) {
+        case 0:
+        case 1:
+        case 2:
+        case 3:
+        case 4:
+        case 5:
+        case 6:
+        case 7:
+        case 8:
+            warnx("Pressed I2C button %d", button->pin + 1);
+            break;
+    }
+}
+
 void airdog_cycle(FAR void *arg) {
 
 	FAR struct airdog_app_s *priv = (FAR struct airdog_app_s *)arg;
@@ -402,7 +425,7 @@ void airdog_cycle(FAR void *arg) {
 		}
 	}
 	
-	warnx("connected %d, armed %d, hil %d, main mode %d, sub_mode %d",_drone_active, _armed, _hil, _airdog_status.main_mode, _airdog_status.sub_mode);
+	//warnx("connected %d, armed %d, hil %d, main mode %d, sub_mode %d",_drone_active, _armed, _hil, _airdog_status.main_mode, _airdog_status.sub_mode);
 
 	/* check the GPIO */
 	uint32_t gpio_values;
@@ -413,6 +436,14 @@ void airdog_cycle(FAR void *arg) {
 	for (int i = 0; i < 6; i++) {
 		check_button(arr[i], gpio_values);
 	}
+
+    bool button_state_updated;
+    orb_check(priv->i2c_button_status_sub, &button_state_updated);
+    if (button_state_updated) {
+        struct i2c_button_s button_s;
+        orb_copy(ORB_ID(i2c_button_status), priv->i2c_button_status_sub, &button_s);
+        i2c_button_pressed(&button_s);
+    }
 
 	/* repeat cycle at 10 Hz */
 	if (airdog_running) {

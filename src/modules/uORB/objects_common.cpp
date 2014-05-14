@@ -208,3 +208,6 @@ ORB_DEFINE(airdog_status, struct airdog_status_s);
 
 #include "topics/airdog_path_log.h"
 ORB_DEFINE(airdog_path_log, struct airdog_path_log_s);
+
+#include "topics/i2c_button_status.h"
+ORB_DEFINE(i2c_button_status, struct i2c_button_s);
