@@ -32,20 +32,24 @@
 
 extern "C" void start_listener(int adress);
 extern "C" void stop_listener(void);
+extern "C" void set_indicators_state(led_state_t state);
 
-class BUTTON_LISTENER : public device::I2C
+class I2C_CONTROLLER : public device::I2C
 {
 public:
-	BUTTON_LISTENER(int bus, int addr);
-	virtual ~BUTTON_LISTENER();
+	I2C_CONTROLLER(int bus, int addr);
+	virtual ~I2C_CONTROLLER();
 
 	virtual int		init();
 	virtual int		probe();
     void            start_listening();
+    void            test_diodes();
+    void            set_indicators_state(led_state_t state);
 
 private:
     bool			_running;
     bool			_should_run;
+    bool            _led_update_in_progress;
 	work_s			_work;
     int			    _listening_interval;
     orb_advert_t    _cmd_pub; 
@@ -57,18 +61,18 @@ private:
     int             get_buttons_state_from_r1();
     int             get_buttons_state_from_r2();
     void            init_buttons();
+    int             init_led();
     void            check_button(struct i2c_button_s *button, int values);
     void            button_pressed(struct i2c_button_s *button, bool long_press);
 };
 
-/* for now, we only support one BUTTON_LISTENER */
+/* for now, we only support one I2C_CONTROLLER */
 namespace
 {
-BUTTON_LISTENER *_listener;
+I2C_CONTROLLER *_listener;
 }
 
-
-BUTTON_LISTENER::BUTTON_LISTENER(int bus, int addr) :
+I2C_CONTROLLER::I2C_CONTROLLER(int bus, int addr) :
 	I2C("buttons", "/dev/buttons", bus, addr, 100000),
     _running(false),
     _should_run(false),
@@ -77,13 +81,13 @@ BUTTON_LISTENER::BUTTON_LISTENER(int bus, int addr) :
 	memset(&_work, 0, sizeof(_work));
 }
 
-BUTTON_LISTENER::~BUTTON_LISTENER()
+I2C_CONTROLLER::~I2C_CONTROLLER()
 {
     delete _buttons;
 }
 
 int
-BUTTON_LISTENER::init()
+I2C_CONTROLLER::init()
 {
 	int ret;
 	ret = I2C::init();
@@ -94,11 +98,18 @@ BUTTON_LISTENER::init()
 
     init_buttons();
 
+    ret = init_led();
+    if (ret != OK) {
+		return ret;
+	}
+
+    _led_update_in_progress = false;
+
 	return OK;
 }
 
 int
-BUTTON_LISTENER::probe()
+I2C_CONTROLLER::probe()
 {
     uint8_t response[1] = {0};
     uint8_t requests[1] = {0x00};
@@ -111,7 +122,7 @@ BUTTON_LISTENER::probe()
 }
 
 void
-BUTTON_LISTENER::init_buttons()
+I2C_CONTROLLER::init_buttons()
 {
     _buttons = new i2c_button_s[I2C_BUTTON_COUNT];
     int pin_id = 0;
@@ -126,44 +137,56 @@ BUTTON_LISTENER::init_buttons()
     _cmd_pub = -1;
 }
 
-void
-BUTTON_LISTENER::listener_trampoline(void *arg)
+int
+I2C_CONTROLLER::init_led()
 {
-	BUTTON_LISTENER *rgbl = reinterpret_cast<BUTTON_LISTENER *>(arg);
+    uint8_t requests[2] = {0x07, 0x3F};
+    int ret = transfer(requests, sizeof(requests), nullptr, 0);
+    warnx("init_led() code is: %d", ret);
+    return ret;
+}
+
+void
+I2C_CONTROLLER::listener_trampoline(void *arg)
+{
+	I2C_CONTROLLER *rgbl = reinterpret_cast<I2C_CONTROLLER *>(arg);
 
 	rgbl->listen();
 }
 
 void
-BUTTON_LISTENER::listen()
+I2C_CONTROLLER::listen()
 {
     if (!_should_run) {
 		_running = false;
 		return;
 	}
-    int mask_r1 = get_buttons_state_from_r1();
 
-    for (int i = 0; i < I2C_BUTTON_COUNT - 1; i++) {
-		check_button(&_buttons[i], mask_r1);
-	}
-    int mask_r2 = get_buttons_state_from_r2();
-    for (int i = I2C_BUTTON_COUNT - 1; i < I2C_BUTTON_COUNT; i++) {
-		check_button(&_buttons[i], mask_r2);
-	}
+    if (!_led_update_in_progress) {
+        int mask_r1 = get_buttons_state_from_r1();
 
-    work_queue(LPWORK, &_work, (worker_t)&BUTTON_LISTENER::listener_trampoline, this, _listening_interval);
+        for (int i = 0; i < I2C_BUTTON_COUNT - 1; i++) {
+            check_button(&_buttons[i], mask_r1);
+        }
+        int mask_r2 = get_buttons_state_from_r2();
+        for (int i = I2C_BUTTON_COUNT - 1; i < I2C_BUTTON_COUNT; i++) {
+            check_button(&_buttons[i], mask_r2);
+        }
+    }
+
+    work_queue(LPWORK, &_work, (worker_t)&I2C_CONTROLLER::listener_trampoline, this, _listening_interval);
 }
 
 void
-BUTTON_LISTENER::start_listening()
+I2C_CONTROLLER::start_listening()
 {
     _should_run = true;
     _running = true;
-    work_queue(LPWORK, &_work, (worker_t)&BUTTON_LISTENER::listener_trampoline, this, _listening_interval);
+    work_queue(LPWORK, &_work, (worker_t)&I2C_CONTROLLER::listener_trampoline, this, _listening_interval);
 }
 
 int
-BUTTON_LISTENER::get_buttons_state_from_r1()
+I2C_CONTROLLER::get_buttons_state_from_r1()
 {
     uint8_t response[1] = {0};
     uint8_t requests[1] = {0x00};
@@ -178,12 +201,12 @@ BUTTON_LISTENER::get_buttons_state_from_r1()
 }
 
 int
-BUTTON_LISTENER::get_buttons_state_from_r2()
+I2C_CONTROLLER::get_buttons_state_from_r2()
 {
     uint8_t response[1] = {0};
     uint8_t requests[2] = {0x00, 0x00};
 
-    int ret = transfer(requests, sizeof(requests) * 2, nullptr, 0);
+    int ret = transfer(requests, sizeof(requests), nullptr, 0);
     ret = transfer(nullptr, 0, response, sizeof(response)); 
 
     if (ret == OK) {
@@ -193,7 +216,7 @@ BUTTON_LISTENER::get_buttons_state_from_r2()
 }
 
 void
-BUTTON_LISTENER::check_button(struct i2c_button_s *button, int gpio_values)
+I2C_CONTROLLER::check_button(struct i2c_button_s *button, int gpio_values)
 {  
 	if (!(gpio_values & (1 << button->register_pin))) {
 		uint64_t now = hrt_absolute_time();
@@ -221,13 +244,25 @@ BUTTON_LISTENER::check_button(struct i2c_button_s *button, int gpio_values)
 };
 
 void
-BUTTON_LISTENER::button_pressed(struct i2c_button_s *button, bool long_press)
+I2C_CONTROLLER::button_pressed(struct i2c_button_s *button, bool long_press)
 {
     if (_cmd_pub < 0) {
         _cmd_pub = orb_advertise(ORB_ID(i2c_button_status), button);
     } else {
         orb_publish(ORB_ID(i2c_button_status), _cmd_pub, button);
     }
+}
+
+void
+I2C_CONTROLLER::set_indicators_state(led_state_t state)
+{
+    _led_update_in_progress = true;
+    uint8_t response[1] = {0};
+
+    uint8_t requests[2] = {0x03, state};
+    warnx("State : %x", state);
+    int ret = transfer(requests, sizeof(requests), nullptr, 0);
+    _led_update_in_progress = false;
 }
 
 void start_listener(int adress)
@@ -241,7 +276,7 @@ void start_listener(int adress)
     if (i2cdevice == -1) {
         // try the external bus first
         i2cdevice = PX4_I2C_BUS_EXPANSION;
-        _listener = new BUTTON_LISTENER(i2cdevice, rgbledadr);
+        _listener = new I2C_CONTROLLER(i2cdevice, rgbledadr);
         int ret = _listener->init();
         if (_listener != nullptr && OK != ret) {
             delete _listener;
@@ -257,7 +292,7 @@ void start_listener(int adress)
     }
 
     if (_listener == nullptr) {
-        _listener = new BUTTON_LISTENER(i2cdevice, rgbledadr);
+        _listener = new I2C_CONTROLLER(i2cdevice, rgbledadr);
         warnx("creating device on default bus.");
         if (_listener == nullptr)
             errx(1, "new failed");
@@ -270,11 +305,19 @@ void start_listener(int adress)
     }
     if (_listener) {
         _listener->start_listening();
+        //stop_listener();
     }
 }
 
 void stop_listener()
-{   
+{
     delete _listener;
     _listener = nullptr;
+}
+
+void set_indicators_state(led_state_t state)
+{
+    warnx("State is %x", state);
+    warnx("State size is %d", sizeof(state));
+    _listener->set_indicators_state(state);
 }

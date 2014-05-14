@@ -393,9 +393,17 @@ void i2c_button_pressed(struct i2c_button_s *button)
 {
     switch(button->pin) {
         case 0:
+            set_indicators_state(LED_STATE_RED_ON);
+            break;
         case 1:
+            set_indicators_state(LED_STATE_GREEN_ON);
+            break;
         case 2:
+            set_indicators_state(LED_STATE_BOTH_ON);
+            break;
         case 3:
+            set_indicators_state(LED_STATE_BOTH_OFF);
+            break;
         case 4:
         case 5:
         case 6:
