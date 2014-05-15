@@ -413,7 +413,6 @@ void i2c_button_pressed(struct i2c_button_s *button)
         case 6:
         case 7:
         case 8:
-            warnx("Pressed I2C button %d", button->pin + 1);
             break;
     }
 }
@@ -436,7 +435,7 @@ void airdog_cycle(FAR void *arg) {
 			_drone_active = false;
 		}
 	}
-	
+
 	//warnx("connected %d, armed %d, hil %d, main mode %d, sub_mode %d",_drone_active, _armed, _hil, _airdog_status.main_mode, _airdog_status.sub_mode);
 
 	/* check the GPIO */

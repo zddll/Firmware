@@ -1,6 +1,8 @@
 #ifndef I2C_HELPER_HEADER_H
 #define I2C_HELPER_HEADER_H
 
+#define DEVICE_FREQUENCY 100000
+
 typedef enum {
    LED_STATE_BOTH_OFF = 0xFF,
    LED_STATE_GREEN_ON = 0xBF,
@@ -25,4 +27,14 @@ typedef enum {
     SYMBOL_EMPTY = 0x00
 } symbol_t;
 
+#ifdef __cplusplus /* If this is a C++ compiler, use C linkage */
+extern "C" {
+#endif
+    void start_listener(int adress);
+    void stop_listener(void);
+    void set_indicators_state(led_state_t state);
+    void set_symbols(symbol_t first, symbol_t second, symbol_t third);
+#ifdef __cplusplus /* If this is a C++ compiler, end C linkage */
+}
+#endif
 #endif

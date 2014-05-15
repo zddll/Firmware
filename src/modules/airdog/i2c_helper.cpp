@@ -33,25 +33,17 @@
 #define DISPLAY_ADDR 0x38 /**< I2C adress of our display i2c controller */ 
 
 
-extern "C" void start_listener(int adress);
-extern "C" void stop_listener(void);
-extern "C" void set_indicators_state(led_state_t state);
-extern "C" void set_symbols(symbol_t first, symbol_t second, symbol_t third);
-
-/* for now, we only support one I2C_CONTROLLER */
 namespace
 {
 I2C_CONTROLLER *_listener;
 I2C_DISPLAY_CONTROLLER *_display;
 }
 
-
-
 void start_listener(int adress)
 {
     int i2cdevice = -1;
 	int main_adr = LISTENER_ADDR;
-    int display_addr = 0x38; /* 7bit */
+    int display_addr = DISPLAY_ADDR; /* 7bit */
 
     if (_listener != nullptr)
         errx(1, "already started");
