@@ -150,7 +150,7 @@ int airdog_main(int argc, char *argv[])
 
     if (!strcmp(argv[1], "i2c")) {
         int hex = strtol(argv[2], NULL, 16);
-        start_listener(0x20);
+        start_listener(hex);
     }
 
 	usage("unrecognized command");
@@ -405,7 +405,11 @@ void i2c_button_pressed(struct i2c_button_s *button)
             set_indicators_state(LED_STATE_BOTH_OFF);
             break;
         case 4:
+            set_symbols(SYMBOL_9, SYMBOL_9, SYMBOL_9);
+            break;
         case 5:
+            set_symbols(SYMBOL_EMPTY, SYMBOL_EMPTY, SYMBOL_EMPTY);
+            break;
         case 6:
         case 7:
         case 8:
