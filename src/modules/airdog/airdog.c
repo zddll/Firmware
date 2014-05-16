@@ -391,9 +391,40 @@ void button_pressed(struct gpio_button_s *button, bool long_press) {
 
 void i2c_button_pressed(struct i2c_button_s *button)
 {
+    bool long_press = button->long_press;
     switch(button->pin) {
         case 0:
             set_indicators_state(LED_STATE_RED_ON);
+            if (!_armed & _drone_active)
+			{
+				if (long_press)
+				{
+					uint8_t base_mode = MAV_MODE_FLAG_SAFETY_ARMED | MAV_MODE_FLAG_CUSTOM_MODE_ENABLED;
+					if (_hil)
+					{
+						base_mode |= MAV_MODE_FLAG_HIL_ENABLED;
+					}
+					send_set_mode(base_mode, PX4_CUSTOM_MAIN_MODE_AUTO);
+					//while (_airdog_status.main_mode != PX4_CUSTOM_MAIN_MODE_AUTO) {
+					//	System.Threading.Thread.Sleep(250); // pause for 1/4 second;
+					//};
+					sleep(5);
+					send_set_state(NAV_STATE_TAKEOFF, MOVE_NONE);
+				}
+			} else {
+				if (long_press)
+				{
+					send_set_state(NAV_STATE_LAND, MOVE_NONE);
+					//send_set_mode(MAV_MODE_FLAG_CUSTOM_MODE_ENABLED, PX4_CUSTOM_MAIN_MODE_AUTO);
+				} else {
+					if (_airdog_status.sub_mode == PX4_CUSTOM_SUB_MODE_AUTO_LOITER)
+					{
+						send_set_state(NAV_STATE_AFOLLOW, MOVE_NONE);
+					} else {
+						send_set_state(NAV_STATE_LOITER, MOVE_NONE);
+					}
+				}
+			}
             break;
         case 1:
             set_indicators_state(LED_STATE_GREEN_ON);
@@ -409,10 +440,14 @@ void i2c_button_pressed(struct i2c_button_s *button)
             break;
         case 5:
             set_symbols(SYMBOL_EMPTY, SYMBOL_EMPTY, SYMBOL_EMPTY);
+            send_set_state(NAV_STATE_MOVE, MOVE_DOWN);
             break;
         case 6:
+            send_set_state(NAV_STATE_MOVE, MOVE_UP);
         case 7:
+            send_set_state(NAV_STATE_MOVE, MOVE_RIGHT);
         case 8:
+            send_set_state(NAV_STATE_MOVE, MOVE_LEFT);
             break;
     }
 }

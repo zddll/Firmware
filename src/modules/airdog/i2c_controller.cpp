@@ -185,8 +185,8 @@ I2C_CONTROLLER::check_button(struct i2c_button_s *button, int gpio_values)
 			button->time_pressed = now;
 		} else if (button->button_pressed & !button->long_press & elapsed > 150) {
 			warnx("long press button %d", button->pin + 1);
+            button->long_press = true;
 			button_pressed(button, true);
-			button->long_press = true;
 		}
 	} else {
 		if (button->button_pressed == true){
