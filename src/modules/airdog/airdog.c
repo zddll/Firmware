@@ -65,6 +65,7 @@ struct airdog_app_s {
 	struct gpio_button_s button6;
 	int airdog_status_sub;
     int i2c_button_status_sub;
+    int vehicle_status_sub;
 };
 
 static struct airdog_app_s airdog_data;
@@ -270,6 +271,8 @@ void airdog_start(FAR void *arg)
 	/* subscribe to vehicle status topic */
 	priv->airdog_status_sub = orb_subscribe(ORB_ID(airdog_status));
     priv->i2c_button_status_sub = orb_subscribe(ORB_ID(i2c_button_status));
+    priv->vehicle_status_sub = orb_subscribe(ORB_ID(vehicle_status));
+
 
 	/* add worker to queue */
 	int ret = work_queue(LPWORK, &priv->work, airdog_cycle, priv, 0);
@@ -393,7 +396,15 @@ void i2c_button_pressed(struct i2c_button_s *button)
 {
     bool long_press = button->long_press;
     switch(button->pin) {
-        case 0:
+    	case 0:
+        	// ON/OFF button
+            break;
+        case 1:
+        	// DOWN button
+            send_set_state(NAV_STATE_MOVE, MOVE_DOWN);
+            break;
+        case 2:
+        	// PLAY button
             set_indicators_state(LED_STATE_RED_ON);
             if (!_armed & _drone_active)
 			{
@@ -426,27 +437,24 @@ void i2c_button_pressed(struct i2c_button_s *button)
 				}
 			}
             break;
-        case 1:
-            set_indicators_state(LED_STATE_GREEN_ON);
-            break;
-        case 2:
-            set_indicators_state(LED_STATE_BOTH_ON);
-            break;
         case 3:
-            set_indicators_state(LED_STATE_BOTH_OFF);
+        	// UP button
+            send_set_state(NAV_STATE_MOVE, MOVE_UP);
             break;
         case 4:
-            set_symbols(SYMBOL_9, SYMBOL_9, SYMBOL_9);
+        	// CENTER button
+            set_symbols(SYMBOL_A, SYMBOL_0, SYMBOL_1);
             break;
         case 5:
             set_symbols(SYMBOL_EMPTY, SYMBOL_EMPTY, SYMBOL_EMPTY);
-            send_set_state(NAV_STATE_MOVE, MOVE_DOWN);
             break;
         case 6:
-            send_set_state(NAV_STATE_MOVE, MOVE_UP);
+        	set_indicators_state(LED_STATE_GREEN_ON);
         case 7:
+        	set_indicators_state(LED_STATE_BOTH_OFF);
             send_set_state(NAV_STATE_MOVE, MOVE_RIGHT);
         case 8:
+        	set_indicators_state(LED_STATE_BOTH_ON);
             send_set_state(NAV_STATE_MOVE, MOVE_LEFT);
             break;
     }
@@ -458,6 +466,11 @@ void airdog_cycle(FAR void *arg) {
 
 	bool updated;
 	orb_check(priv->airdog_status_sub, &updated);
+
+	// struct vehicle_status_s status;
+	// orb_copy(ORB_ID(vehicle_status), priv->vehicle_status_sub, &status);
+
+	// warnx("voltage %.2f current %.2f remaining %.2f", status.battery_voltage, status.battery_current, status.battery_remaining);
 
 	if (updated) {
 		orb_copy(ORB_ID(airdog_status), priv->airdog_status_sub, &_airdog_status);
