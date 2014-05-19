@@ -99,6 +99,7 @@
 #include "baro_calibration.h"
 #include "rc_calibration.h"
 #include "airspeed_calibration.h"
+#include <airdog/i2c_helper.h>
 
 /* oddly, ERROR is not defined for c++ */
 #ifdef ERROR
@@ -1552,9 +1553,10 @@ control_status_leds(vehicle_status_s *status, const actuator_armed_s *actuator_a
 			} else {
 				if (status->condition_local_position_valid) {
 					rgbled_set_color(RGBLED_COLOR_GREEN);
-
+					set_green_led_on(true);
 				} else {
 					rgbled_set_color(RGBLED_COLOR_BLUE);
+					set_green_led_on(false);
 				}
 			}
 		}

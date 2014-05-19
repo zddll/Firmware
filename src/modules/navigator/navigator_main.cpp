@@ -811,7 +811,7 @@ Navigator::task_main()
 				}
 
 				/* check if waypoint has been reached in MISSION, RTL and LAND modes */
-				if (myState == NAV_STATE_MISSION || myState == NAV_STATE_RTL || myState == NAV_STATE_LAND) {
+				if (myState == NAV_STATE_MISSION || myState == NAV_STATE_RTL || myState == NAV_STATE_LAND || myState == NAV_STATE_TAKEOFF) {
 					if (check_mission_item_reached()) {
 						on_mission_item_reached();
 					}
@@ -892,7 +892,7 @@ Navigator::task_main()
 				}
 
 				/* check if waypoint has been reached in MISSION, RTL and LAND modes */
-				if (myState == NAV_STATE_MISSION || myState == NAV_STATE_RTL || myState == NAV_STATE_LAND) {
+				if (myState == NAV_STATE_MISSION || myState == NAV_STATE_RTL || myState == NAV_STATE_LAND || myState == NAV_STATE_TAKEOFF) {
 					if (check_mission_item_reached()) {
 						on_mission_item_reached();
 					}
@@ -1810,7 +1810,7 @@ Navigator::reset_reached()
 void
 Navigator::on_mission_item_reached()
 {
-	if (myState == NAV_STATE_MISSION) {
+	if (myState == NAV_STATE_MISSION || myState == NAV_STATE_TAKEOFF) {
 		if (_do_takeoff) {
 			/* takeoff completed */
 			_do_takeoff = false;

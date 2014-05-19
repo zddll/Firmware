@@ -87,6 +87,7 @@ void i2c_button_pressed(struct i2c_button_s *button);
 
 void send_set_mode(uint8_t base_mode, uint8_t custom_main_mode);
 void send_set_state(uint8_t state, uint8_t direction);
+void display_drone_state();
 
 /**
  * Print the correct usage.
@@ -97,6 +98,7 @@ bool _hil;
 bool _armed;
 bool _drone_active;
 struct airdog_status_s _airdog_status;
+uint64_t _last_drone_timestamp;
 
 static void
 usage(const char *reason)
@@ -405,7 +407,6 @@ void i2c_button_pressed(struct i2c_button_s *button)
             break;
         case 2:
         	// PLAY button
-            set_red_led_on(true);
             if (!_armed & _drone_active)
 			{
 				if (long_press)
@@ -446,22 +447,41 @@ void i2c_button_pressed(struct i2c_button_s *button)
             set_symbols(SYMBOL_A, SYMBOL_0, SYMBOL_1);
             break;
         case 5:
+        	// CENTER DOWN
             set_symbols(SYMBOL_EMPTY, SYMBOL_EMPTY, SYMBOL_EMPTY);
             break;
         case 6:
-        	set_green_led_on(true);
-            break;
+        	// CENTER RIGHT
+        	break;
         case 7:
-            set_green_led_on(false);
-            set_red_led_on(false);
+        	// CENTER UP
             send_set_state(NAV_STATE_MOVE, MOVE_RIGHT);
             break;
         case 8:
-        	set_green_led_on(true);
-            set_red_led_on(true);
+        	// CENTER LEFT
             send_set_state(NAV_STATE_MOVE, MOVE_LEFT);
             break;
     }
+}
+
+void display_drone_state() {
+	switch(_airdog_status.sub_mode) {
+    	case PX4_CUSTOM_SUB_MODE_AUTO_TAKEOFF:
+    		set_symbols(SYMBOL_U, SYMBOL_P, SYMBOL_EMPTY);
+            break;
+        case PX4_CUSTOM_SUB_MODE_AUTO_LOITER:
+        	set_symbols(SYMBOL_L, SYMBOL_0, SYMBOL_1);
+            break;
+        case PX4_CUSTOM_SUB_MODE_AUTO_AFOLLOW:
+        	set_symbols(SYMBOL_F, SYMBOL_0, SYMBOL_L);
+            break;
+        case PX4_CUSTOM_SUB_MODE_AUTO_LAND:
+        	set_symbols(SYMBOL_L, SYMBOL_A, SYMBOL_EMPTY);
+            break;
+        default:
+        	set_symbols(SYMBOL_0, SYMBOL_F, SYMBOL_F);
+        	break;
+        }
 }
 
 void airdog_cycle(FAR void *arg) {
@@ -480,13 +500,27 @@ void airdog_cycle(FAR void *arg) {
 		orb_copy(ORB_ID(airdog_status), priv->airdog_status_sub, &_airdog_status);
 		_hil = (_airdog_status.base_mode & MAV_MODE_FLAG_HIL_ENABLED);
 		_armed = (_airdog_status.base_mode & MAV_MODE_FLAG_SAFETY_ARMED);
-		if (_airdog_status.timestamp > 0) //TODO check for when lost signal
+		display_drone_state();
+		if (_airdog_status.timestamp > 0)
 		{
 			_drone_active = true;
+			set_red_led_on(true);
+			_last_drone_timestamp = _airdog_status.timestamp;
 		} else {
 			_drone_active = false;
+			set_symbols(SYMBOL_EMPTY, SYMBOL_EMPTY, SYMBOL_EMPTY);
+			set_red_led_on(false);
 		}
 	}
+	uint64_t timeDiff = hrt_absolute_time() - _last_drone_timestamp;
+	//mavlink_log_info(_mavlink_fd,"time diff %llu", timeDiff);
+	if (timeDiff > 10000000)
+	{
+		_drone_active = false;
+		set_symbols(SYMBOL_EMPTY, SYMBOL_EMPTY, SYMBOL_EMPTY);
+		set_red_led_on(false);
+	}
+	
 
 	//warnx("connected %d, armed %d, hil %d, main mode %d, sub_mode %d",_drone_active, _armed, _hil, _airdog_status.main_mode, _airdog_status.sub_mode);
 

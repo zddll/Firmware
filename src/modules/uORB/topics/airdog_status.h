@@ -46,8 +46,8 @@
 #include "../uORB.h"
 
 struct airdog_status_s {
-	uint8_t main_mode;
-	uint8_t sub_mode;
+	uint8_t main_mode;	// px4_custom_mode.main_mode
+	uint8_t sub_mode;	// px4_custom_mode.sub_mode
  	uint8_t base_mode; ///< System mode bitfield, see MAV_MODE_FLAGS ENUM in mavlink/include/mavlink_types.h
  	uint8_t system_status; ///< System status flag, see MAV_STATE ENUM
  	uint64_t timestamp;
