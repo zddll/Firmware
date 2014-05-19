@@ -85,12 +85,23 @@ void stop_listener()
     _display = nullptr;
 }
 
-void set_indicators_state(led_state_t state)
+void set_green_led_on(bool set_on)
 {
-    _listener->set_indicators_state(state);
+    if (_listener) {
+        _listener->set_green_led_on(set_on);
+    }
+}
+
+void set_red_led_on(bool set_on)
+{
+    if (_listener) {
+        _listener->set_red_led_on(set_on);
+    }
 }
 
 void set_symbols(symbol_t first, symbol_t second, symbol_t third)
 {
-    _display->set_symbols(first, second, third);
+    if (_display) {
+        _display->set_symbols(first, second, third);
+    }
 }

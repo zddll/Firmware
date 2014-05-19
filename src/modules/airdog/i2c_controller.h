@@ -14,7 +14,8 @@ public:
 	virtual int		init();
 	virtual int		probe();
     void            start_listening();
-    void            set_indicators_state(uint8_t state);
+    void            set_green_led_on(bool set_on);
+    void            set_red_led_on(bool set_on);
 
 private:
     bool			_running;
@@ -22,7 +23,10 @@ private:
     bool            _led_update_in_progress;
 	work_s			_work;
     int			    _listening_interval;
-    orb_advert_t    _cmd_pub; 
+    orb_advert_t    _cmd_pub;
+
+    bool            _is_red_led_on;
+    bool            _is_green_led_on;
 
     struct i2c_button_s *_buttons;
 

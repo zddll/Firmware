@@ -4,13 +4,6 @@
 #define DEVICE_FREQUENCY 100000
 
 typedef enum {
-   LED_STATE_BOTH_OFF = 0xFF,
-   LED_STATE_GREEN_ON = 0xBF,
-   LED_STATE_RED_ON = 0x7F,
-   LED_STATE_BOTH_ON = 0x3F
-} led_state_t;
-
-typedef enum {
     SYMBOL_0 = 0xFC,
     SYMBOL_1 = 0x60,
     SYMBOL_2 = 0xDA,
@@ -32,8 +25,9 @@ extern "C" {
 #endif
     void start_listener(int adress);
     void stop_listener(void);
-    void set_indicators_state(led_state_t state);
     void set_symbols(symbol_t first, symbol_t second, symbol_t third);
+    void set_green_led_on(bool set_on);
+    void set_red_led_on(bool set_on);
 #ifdef __cplusplus /* If this is a C++ compiler, end C linkage */
 }
 #endif

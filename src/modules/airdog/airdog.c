@@ -405,7 +405,7 @@ void i2c_button_pressed(struct i2c_button_s *button)
             break;
         case 2:
         	// PLAY button
-            set_indicators_state(LED_STATE_RED_ON);
+            set_red_led_on(true);
             if (!_armed & _drone_active)
 			{
 				if (long_press)
@@ -449,12 +449,16 @@ void i2c_button_pressed(struct i2c_button_s *button)
             set_symbols(SYMBOL_EMPTY, SYMBOL_EMPTY, SYMBOL_EMPTY);
             break;
         case 6:
-        	set_indicators_state(LED_STATE_GREEN_ON);
+        	set_green_led_on(true);
+            break;
         case 7:
-        	set_indicators_state(LED_STATE_BOTH_OFF);
+            set_green_led_on(false);
+            set_red_led_on(false);
             send_set_state(NAV_STATE_MOVE, MOVE_RIGHT);
+            break;
         case 8:
-        	set_indicators_state(LED_STATE_BOTH_ON);
+        	set_green_led_on(true);
+            set_red_led_on(true);
             send_set_state(NAV_STATE_MOVE, MOVE_LEFT);
             break;
     }

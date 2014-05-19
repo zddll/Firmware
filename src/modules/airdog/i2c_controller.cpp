@@ -212,10 +212,29 @@ I2C_CONTROLLER::button_pressed(struct i2c_button_s *button, bool long_press)
 }
 
 void
-I2C_CONTROLLER::set_indicators_state(uint8_t state)
+I2C_CONTROLLER::set_green_led_on(bool set_on)
 {
-    uint8_t response[1] = {0};
+    uint8_t green = set_on ? 0x40 : 0x00;
+    uint8_t red = _is_red_led_on ? 0x80 : 0x00;
+    uint8_t state = 0xFF ^ green ^ red;
 
     uint8_t requests[2] = {LED_WRITE_PORT_NUMBER, state};
     int ret = transfer(requests, sizeof(requests), nullptr, 0);
+    if (ret == OK) {
+       _is_green_led_on = set_on;
+    }
+}
+
+void
+I2C_CONTROLLER::set_red_led_on(bool set_on)
+{
+    uint8_t green = _is_green_led_on ? 0x40 : 0x00;
+    uint8_t red = set_on ? 0x80 : 0x00;
+    uint8_t state = 0xFF ^ green ^ red;
+
+    uint8_t requests[2] = {LED_WRITE_PORT_NUMBER, state};
+    int ret = transfer(requests, sizeof(requests), nullptr, 0);
+    if (ret == OK) {
+       _is_red_led_on = set_on;
+    }
 }
