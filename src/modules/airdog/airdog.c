@@ -88,6 +88,7 @@ void i2c_button_pressed(struct i2c_button_s *button);
 void send_set_mode(uint8_t base_mode, uint8_t custom_main_mode);
 void send_set_state(uint8_t state, uint8_t direction);
 void display_drone_state();
+void send_record_path_cmd(bool start);
 
 /**
  * Print the correct usage.
@@ -403,7 +404,7 @@ void i2c_button_pressed(struct i2c_button_s *button)
             break;
         case 1:
         	// DOWN button
-            send_set_state(NAV_STATE_MOVE, MOVE_DOWN);
+            send_set_state(NAV_STATE_LOITER, MOVE_DOWN);
             break;
         case 2:
         	// PLAY button
@@ -440,7 +441,7 @@ void i2c_button_pressed(struct i2c_button_s *button)
             break;
         case 3:
         	// UP button
-            send_set_state(NAV_STATE_MOVE, MOVE_UP);
+            send_set_state(NAV_STATE_LOITER, MOVE_UP);
             break;
         case 4:
         	// CENTER button
@@ -449,17 +450,19 @@ void i2c_button_pressed(struct i2c_button_s *button)
         case 5:
         	// CENTER DOWN
             set_symbols(SYMBOL_EMPTY, SYMBOL_EMPTY, SYMBOL_EMPTY);
+            send_set_state(NAV_STATE_LOITER, MOVE_CLOSER);
             break;
         case 6:
         	// CENTER RIGHT
+            send_set_state(NAV_STATE_LOITER, MOVE_RIGHT);
         	break;
         case 7:
         	// CENTER UP
-            send_set_state(NAV_STATE_MOVE, MOVE_RIGHT);
+            send_set_state(NAV_STATE_LOITER, MOVE_FARTHER);
             break;
         case 8:
         	// CENTER LEFT
-            send_set_state(NAV_STATE_MOVE, MOVE_LEFT);
+            send_set_state(NAV_STATE_LOITER, MOVE_LEFT);
             break;
     }
 }

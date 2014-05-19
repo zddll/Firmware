@@ -94,6 +94,8 @@
 #endif
 static const int ERROR = -1;
 
+#define LOITER_ADJUSTMENT 2.0
+
 /**
  * navigator app start / stop handling function
  *
@@ -1071,7 +1073,7 @@ StateTable::Tran const Navigator::myTable[NAV_STATE_MAX][MAX_EVENT] = {
 		/* NAV_STATE_LOITER */
 		/* EVENT_NONE_REQUESTED */		{ACTION(&Navigator::start_none), NAV_STATE_NONE},
 		/* EVENT_READY_REQUESTED */		{NO_ACTION, NAV_STATE_LOITER},
-		/* EVENT_LOITER_REQUESTED */		{NO_ACTION, NAV_STATE_LOITER},
+		/* EVENT_LOITER_REQUESTED */		{ACTION(&Navigator::start_move), NAV_STATE_LOITER},
 		/* EVENT_MISSION_REQUESTED */		{ACTION(&Navigator::start_mission), NAV_STATE_MISSION},
 		/* EVENT_RTL_REQUESTED */		{ACTION(&Navigator::start_rtl), NAV_STATE_RTL},
 		/* EVENT_LAND_REQUESTED */		{ACTION(&Navigator::start_land), NAV_STATE_LAND},
@@ -2078,33 +2080,72 @@ Navigator::start_move()
 {
 	math::Vector<3> offset;
 	offset.zero();
-	int alt;
+	int alt = 0;
 	uint8_t direction = _vstatus.auto_move_direction;
-	if (direction == MOVE_UP) {
-		alt = 3;
-	} else if (direction == MOVE_DOWN) {
-		alt = -3;
-	} else if (direction == MOVE_LEFT) {
-//		offset(2) = -1;
-	} else if (direction == MOVE_RIGHT) {
-//		offset(2) = -1;
-	} else if (direction == MOVE_CLOSER) {
-//		offset(2) = -1;
-	} else if (direction == MOVE_FARTHER) {
-//		offset(2) = -1;
-	}
+    mavlink_log_info(_mavlink_fd, "Command received");
+    double updated_drone_lat = _pos_sp_triplet.current.lat;
+    double updated_drone_lon = _pos_sp_triplet.current.lon;
+    if (direction == MOVE_UP) {
+        alt = LOITER_ADJUSTMENT;
+    } else if (direction == MOVE_DOWN) {
+        alt = -LOITER_ADJUSTMENT;
+    } else {
+        float new_offset_x;
+        float new_offset_y;
+        get_vector_to_next_waypoint_fast(
+                _pos_sp_triplet.current.lat,
+                _pos_sp_triplet.current.lon,
+                _target_pos.lat,
+                _target_pos.lon,
+                &new_offset_x,
+                &new_offset_y);
+        float phi = atan2f(new_offset_y, new_offset_x);
+        float r = sqrt(pow(new_offset_x, 2.0) + pow(new_offset_y, 2.0));
+        float alpha = (M_PI / 2) - asinf(LOITER_ADJUSTMENT / (2 * r));
+        if (direction == MOVE_LEFT || direction == MOVE_RIGHT) {
+            offset(0) = LOITER_ADJUSTMENT * cosf(phi);
+            offset(1) = LOITER_ADJUSTMENT * sinf(phi);
 
-	_reset_loiter_pos = true;
-	_pos_sp_triplet.current.valid = true;
+            math::Matrix<3, 3> R_phi;
+            if (direction == MOVE_LEFT) {
+                R_phi.from_euler(0.0f, 0.0f, -alpha);
+            } else {
+                R_phi.from_euler(0.0f, 0.0f, alpha);
+            }
+            offset = R_phi * offset;
+        } else if (direction == MOVE_CLOSER || direction == MOVE_FARTHER) {
+            if (direction == MOVE_CLOSER) {
+                offset(0) = (-LOITER_ADJUSTMENT) * cosf(phi);
+                offset(1) = (-LOITER_ADJUSTMENT) * sinf(phi);
+            } else {
+                offset(0) = LOITER_ADJUSTMENT * cosf(phi);
+                offset(1) = LOITER_ADJUSTMENT * sinf(phi);
+            }
+        }
+    }
+
+    _reset_loiter_pos = true;
+    _pos_sp_triplet.current.valid = true;
     _pos_sp_triplet.previous.valid = false;
     _pos_sp_triplet.current.type = SETPOINT_TYPE_NORMAL;
-    _pos_sp_triplet.current.alt = _global_pos.alt + alt;
-    _pos_sp_triplet.current.yaw = NAN;
-	add_vector_to_global_position(
-				_global_pos.lat, _global_pos.lon,
-				offset(0), offset(1),
-				&_pos_sp_triplet.current.lat, &_pos_sp_triplet.current.lon);
-	mavlink_log_info(_mavlink_fd, "current alt %d, desired alt %d", _global_pos.alt, _pos_sp_triplet.current.alt)
+    _pos_sp_triplet.current.alt += alt;
+
+    double new_lat;
+    double new_lon;
+    add_vector_to_global_position(
+            _pos_sp_triplet.current.lat, _pos_sp_triplet.current.lon,
+            offset(0), offset(1),
+            &new_lat, &new_lon);
+    _pos_sp_triplet.current.yaw = get_bearing_to_next_waypoint(
+            new_lat,
+            new_lon,
+            _target_pos.lat,
+            _target_pos.lon);
+    _pos_sp_triplet.current.lat = new_lat;
+    _pos_sp_triplet.current.lon = new_lon;
+
+    _pos_sp_triplet_updated = true;
+    mavlink_log_info(_mavlink_fd, "current alt %d, desired alt %d", _global_pos.alt, _pos_sp_triplet.current.alt)
 }
 
 
