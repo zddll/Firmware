@@ -1,9 +1,6 @@
 /****************************************************************************
  *
  *   Copyright (c) 2013, 2014 PX4 Development Team. All rights reserved.
- *   Author: @author Tobias Naegeli <naegelit@student.ethz.ch>
- *   	     @author Lorenz Meier <lm@inf.ethz.ch>
- *           @author Anton Babushkin <anton.babushkin@me.com>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -37,6 +34,10 @@
 /**
  * @file mc_att_control_params.c
  * Parameters for multicopter attitude controller.
+ *
+ * @author Tobias Naegeli <naegelit@student.ethz.ch>
+ * @author Lorenz Meier <lm@inf.ethz.ch>
+ * @author Anton Babushkin <anton.babushkin@me.com>
  */
 
 #include <systemlib/param/param.h>
@@ -214,3 +215,32 @@ PARAM_DEFINE_FLOAT(MC_MAN_P_MAX, 35.0f);
  * @group Multicopter Attitude Control
  */
 PARAM_DEFINE_FLOAT(MC_MAN_Y_MAX, 120.0f);
+
+/**
+ * Max acro roll rate
+ *
+ * @unit deg/s
+ * @min 0.0
+ * @max 360.0
+ * @group Multicopter Attitude Control
+ */
+PARAM_DEFINE_FLOAT(MC_ACRO_R_MAX, 90.0f);
+
+/**
+ * Max acro pitch rate
+ *
+ * @unit deg/s
+ * @min 0.0
+ * @max 360.0
+ * @group Multicopter Attitude Control
+ */
+PARAM_DEFINE_FLOAT(MC_ACRO_P_MAX, 90.0f);
+
+/**
+ * Max acro yaw rate
+ *
+ * @unit deg/s
+ * @min 0.0
+ * @group Multicopter Attitude Control
+ */
+PARAM_DEFINE_FLOAT(MC_ACRO_Y_MAX, 120.0f);

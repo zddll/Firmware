@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (c) 2012, 2013 PX4 Development Team. All rights reserved.
+ *   Copyright (c) 2012-2014 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -45,12 +45,12 @@
 /**
  * The number of RC channel inputs supported.
  * Current (Q4/2013) radios support up to 18 channels,
- * leaving at a sane value of 15.
+ * leaving at a sane value of 17.
  * This number can be greater then number of RC channels,
  * because single RC channel can be mapped to multiple
  * functions, e.g. for various mode switches.
  */
-#define RC_CHANNELS_MAPPED_MAX   15
+#define RC_CHANNELS_MAPPED_MAX   17
 
 /**
  * This defines the mapping of the RC functions.
@@ -64,17 +64,17 @@ enum RC_CHANNELS_FUNCTION {
 	YAW      = 3,
 	MODE = 4,
 	RETURN = 5,
-	ASSISTED = 6,
+	POSCTL = 6,
 	LOITER = 7,
 	OFFBOARD_MODE = 8,
-	FLAPS   = 9,
-	AUX_1   = 10,
-	AUX_2   = 11,
-	AUX_3   = 12,
-	AUX_4   = 13,
-	AUX_5   = 14,
-	AFOLLOW = 15,
-	CAMERA_FOLLOW = 16,
+	ACRO    = 9,
+	FOLLOW    = 10,
+	FLAPS   = 11,
+	AUX_1   = 12,
+	AUX_2   = 13,
+	AUX_3   = 14,
+	AUX_4   = 15,
+	AUX_5   = 16,
 	RC_CHANNELS_FUNCTION_MAX /**< indicates the number of functions. There can be more functions than RC channels. */
 };
 
