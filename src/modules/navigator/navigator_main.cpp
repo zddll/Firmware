@@ -341,6 +341,8 @@ private:
     void        start_come_here();
     void		start_move();
 
+    void check_takeoff_reached();
+
 	/**
 	 * Fork for state transitions
 	 */
@@ -811,7 +813,7 @@ Navigator::task_main()
 				}
 
 				/* check if waypoint has been reached in MISSION, RTL and LAND modes */
-				if (myState == NAV_STATE_MISSION || myState == NAV_STATE_RTL || myState == NAV_STATE_LAND || myState == NAV_STATE_TAKEOFF) {
+				if (myState == NAV_STATE_MISSION || myState == NAV_STATE_RTL || myState == NAV_STATE_LAND) {
 					if (check_mission_item_reached()) {
 						on_mission_item_reached();
 					}
@@ -892,10 +894,14 @@ Navigator::task_main()
 				}
 
 				/* check if waypoint has been reached in MISSION, RTL and LAND modes */
-				if (myState == NAV_STATE_MISSION || myState == NAV_STATE_RTL || myState == NAV_STATE_LAND || myState == NAV_STATE_TAKEOFF) {
+				if (myState == NAV_STATE_MISSION || myState == NAV_STATE_RTL || myState == NAV_STATE_LAND) {
 					if (check_mission_item_reached()) {
 						on_mission_item_reached();
 					}
+				}
+				if (myState == NAV_STATE_TAKEOFF)
+				{
+					check_takeoff_reached();
 				}
 			}
 
@@ -1684,9 +1690,22 @@ Navigator::position_setpoint_from_mission_item(position_setpoint_s *sp, mission_
 	}
 }
 
+void
+Navigator::check_takeoff_reached()
+{
+	float acceptance_radius = _parameters.acceptance_radius;
+	float to_alt_amsl = _pos_sp_triplet.current.alt;
+	mavlink_log_info(_mavlink_fd, "current %.2f needed %.2f", _global_pos.alt, to_alt_amsl - acceptance_radius)
+	if (_global_pos.alt > to_alt_amsl - acceptance_radius)  {
+		mavlink_log_info(_mavlink_fd, "#audio: takeoff completed");
+		request_loiter_or_ready();
+	}
+}
+
 bool
 Navigator::check_mission_item_reached()
 {
+	mavlink_log_info(_mavlink_fd, "got here");
 	/* only check if there is actually a mission item to check */
 	if (!_mission_item_valid) {
 		return false;
@@ -1728,7 +1747,7 @@ Navigator::check_mission_item_reached()
 
 		if (_do_takeoff) {
 			/* require only altitude for takeoff */
-			if (_global_pos.alt > wp_alt_amsl - acceptance_radius) {
+			if (_global_pos.alt > wp_alt_amsl - acceptance_radius)  {
 				_waypoint_position_reached = true;
 			}
 
@@ -1810,7 +1829,7 @@ Navigator::reset_reached()
 void
 Navigator::on_mission_item_reached()
 {
-	if (myState == NAV_STATE_MISSION || myState == NAV_STATE_TAKEOFF) {
+	if (myState == NAV_STATE_MISSION) {
 		if (_do_takeoff) {
 			/* takeoff completed */
 			_do_takeoff = false;
@@ -1964,6 +1983,7 @@ void Navigator::load_fence_from_file(const char *filename)
 void
 Navigator::start_takeoff()
 {
+	reset_reached();
 	/* calculate desired takeoff altitude AMSL */
 	float takeoff_alt_amsl = _pos_sp_triplet.current.alt;
 
@@ -1991,6 +2011,7 @@ Navigator::start_takeoff()
 void
 Navigator::start_afollow()
 {
+	reset_reached();
 	/* always reset offset on mode start */
 	{
 		get_vector_to_next_waypoint_fast(_target_lat, _target_lon, _global_pos.lat, _global_pos.lon, &_afollow_offset.data[0], &_afollow_offset.data[1]);
@@ -2003,6 +2024,8 @@ Navigator::start_afollow()
 void
 Navigator::start_come_here()
 {
+	reset_reached();
+
     if (_vstatus.condition_target_position_valid) {
         _pos_sp_triplet.current.valid = true;
         _pos_sp_triplet.previous.valid = false;
