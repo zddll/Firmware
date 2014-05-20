@@ -68,6 +68,7 @@
 #include <uORB/topics/position_setpoint_triplet.h>
 #include <uORB/topics/vehicle_status.h>
 #include <uORB/topics/vehicle_control_mode.h>
+#include <uORB/topics/vehicle_command.h>
 #include <uORB/topics/parameter_update.h>
 #include <uORB/topics/mission.h>
 #include <uORB/topics/fence.h>
@@ -83,6 +84,7 @@
 #include <mavlink/mavlink_log.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <commander/px4_custom_mode.h>
 
 #include "navigator_state.h"
 #include "navigator_mission.h"
@@ -157,6 +159,7 @@ private:
 
 	orb_advert_t	_pos_sp_triplet_pub;			/**< publish position setpoint triplet */
 	orb_advert_t	_mission_result_pub;		/**< publish mission result topic */
+	orb_advert_t 	_cmd_pub;
 
 	struct vehicle_status_s				_vstatus;		/**< vehicle status */
 	struct vehicle_control_mode_s		_control_mode;		/**< vehicle control mode */
@@ -342,6 +345,7 @@ private:
     void		start_move();
 
     void check_takeoff_reached();
+    void disarm();
 
 	/**
 	 * Fork for state transitions
@@ -432,8 +436,10 @@ Navigator::Navigator() :
 	_capabilities_sub(-1),
 	_control_mode_sub(-1),
 
+
 /* publications */
 	_pos_sp_triplet_pub(-1),
+	_cmd_pub(-1),
 
 /* performance counters */
 	_loop_perf(perf_alloc(PC_ELAPSED, "navigator")),
@@ -1705,7 +1711,6 @@ Navigator::check_takeoff_reached()
 bool
 Navigator::check_mission_item_reached()
 {
-	mavlink_log_info(_mavlink_fd, "got here");
 	/* only check if there is actually a mission item to check */
 	if (!_mission_item_valid) {
 		return false;
@@ -1876,6 +1881,37 @@ Navigator::on_mission_item_reached()
 		/* landing completed */
 		mavlink_log_info(_mavlink_fd, "[navigator] landing completed");
 		dispatch(EVENT_READY_REQUESTED);
+		disarm();
+
+	}
+}
+
+void Navigator::disarm()
+{
+	/* TODO this is very ugly, need to rewrite app to C++ and use class fields instead of static var */
+	struct vehicle_command_s cmd;
+	memset(&cmd, 0, sizeof(cmd));
+
+	int state_sub = orb_subscribe(ORB_ID(vehicle_status));
+	struct vehicle_status_s state;
+	orb_copy(ORB_ID(vehicle_status), state_sub, &state);
+
+	/* fill command */
+	cmd.command = VEHICLE_CMD_DO_SET_MODE;
+	cmd.confirmation = false;
+	cmd.param1 = 1;
+	cmd.param2 = PX4_CUSTOM_MAIN_MODE_AUTO;
+	cmd.source_system = state.system_id;
+	cmd.source_component = state.component_id;
+	// TODO add parameters AD_VEH_SYSID, AD_VEH_COMP to set target id
+	cmd.target_system = 1;
+	cmd.target_component = 50;
+
+	if (_cmd_pub > 0) {
+		orb_publish(ORB_ID(vehicle_command), _cmd_pub, &cmd);
+	} else {
+		/* advertise and publish */
+		_cmd_pub = orb_advertise(ORB_ID(vehicle_command), &cmd);
 	}
 }
 
