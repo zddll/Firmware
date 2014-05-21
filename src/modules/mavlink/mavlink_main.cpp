@@ -1973,7 +1973,7 @@ Mavlink::task_main(int argc, char *argv[])
 	/* add default streams depending on mode and intervals depending on datarate */
 	float rate_mult = _datarate / 1000.0f;
 
-	configure_stream("HEARTBEAT", 1.0f);
+	configure_stream("HEARTBEAT", 10.0f);
 
 	switch (_mode) {
 	case MAVLINK_MODE_NORMAL:

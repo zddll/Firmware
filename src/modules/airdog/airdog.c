@@ -445,7 +445,19 @@ void i2c_button_pressed(struct i2c_button_s *button)
             break;
         case 4:
         	// CENTER button
-            set_symbols(SYMBOL_A, SYMBOL_0, SYMBOL_1);
+            //
+        	if (button->started)
+            	{
+            		set_symbols(SYMBOL_0, SYMBOL_F, SYMBOL_EMPTY);
+                	mavlink_log_info(_mavlink_fd, "Logging should stop");
+                	send_record_path_cmd(false);
+               		button->started = false;
+            	} else {
+            		set_symbols(SYMBOL_P, SYMBOL_A, SYMBOL_EMPTY);
+              		mavlink_log_info(_mavlink_fd, "Logging should start");
+					send_record_path_cmd(true);
+              		button->started = true;
+            	}
             break;
         case 5:
         	// CENTER DOWN
@@ -517,7 +529,7 @@ void airdog_cycle(FAR void *arg) {
 	}
 	uint64_t timeDiff = hrt_absolute_time() - _last_drone_timestamp;
 	//mavlink_log_info(_mavlink_fd,"time diff %llu", timeDiff);
-	if (timeDiff > 10000000)
+	if (timeDiff > 5000000)
 	{
 		_drone_active = false;
 		set_symbols(SYMBOL_EMPTY, SYMBOL_EMPTY, SYMBOL_EMPTY);

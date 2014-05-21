@@ -18,6 +18,7 @@ struct i2c_button_s {
 	bool button_pressed;
 	bool long_press;
 	uint64_t time_pressed;
+	bool started;
 };
 
 /* register this as object request broker structure */
