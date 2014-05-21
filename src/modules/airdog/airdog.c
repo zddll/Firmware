@@ -373,13 +373,13 @@ void button_pressed(struct gpio_button_s *button, bool long_press) {
 			}
 			break;
 		case 2:
-			send_set_state(NAV_STATE_MOVE, MOVE_UP);
+			send_set_state(NAV_STATE_LOITER, MOVE_UP);
 			break;
 		case 3:
-            send_set_state(NAV_STATE_MOVE, MOVE_DOWN);
+            send_set_state(NAV_STATE_LOITER, MOVE_DOWN);
 			break;
 		case 4:
-			send_set_state(NAV_STATE_MOVE, MOVE_LEFT);
+			send_set_state(NAV_STATE_LOITER, MOVE_LEFT);
 			break;
 		case 5:
 			if (long_press)
@@ -389,7 +389,7 @@ void button_pressed(struct gpio_button_s *button, bool long_press) {
 					send_set_mode(MAV_MODE_FLAG_CUSTOM_MODE_ENABLED, PX4_CUSTOM_MAIN_MODE_AUTO);
 				}
 			} else {
-				send_set_state(NAV_STATE_MOVE, MOVE_RIGHT);
+				send_set_state(NAV_STATE_LOITER, MOVE_RIGHT);
 			}
 			break;
 	}
