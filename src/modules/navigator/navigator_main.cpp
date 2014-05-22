@@ -2074,6 +2074,9 @@ Navigator::start_move()
         float r = sqrt(pow(new_offset_x, 2.0) + pow(new_offset_y, 2.0));
         float alpha = (M_PI / 2) - asinf(LOITER_ADJUSTMENT / (2 * r));
         if (direction == MOVE_LEFT || direction == MOVE_RIGHT) {
+            if (r <= LOITER_ADJUSTMENT) {
+                return;
+            }
             offset(0) = LOITER_ADJUSTMENT * cosf(phi);
             offset(1) = LOITER_ADJUSTMENT * sinf(phi);
 

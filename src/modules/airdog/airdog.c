@@ -376,8 +376,17 @@ void button_pressed(struct gpio_button_s *button, bool long_press) {
 			send_set_state(NAV_STATE_LOITER, MOVE_UP);
 			break;
 		case 3:
-            send_set_state(NAV_STATE_LOITER, MOVE_DOWN);
-			break;
+            if (button->state == PAUSE)
+            {
+                mavlink_log_info(_mavlink_fd, "Logging should start");
+                send_record_path_cmd(true);
+                button->state = START;
+            } else {
+                mavlink_log_info(_mavlink_fd, "Logging should stop");
+                send_record_path_cmd(false);
+                button->state = PAUSE;
+            }
+            break;
 		case 4:
 			send_set_state(NAV_STATE_LOITER, MOVE_LEFT);
 			break;
