@@ -413,7 +413,11 @@ void i2c_button_pressed(struct i2c_button_s *button)
             break;
         case 1:
         	// DOWN button
-            send_set_state(NAV_STATE_LOITER, MOVE_DOWN);
+            if (long_press) {
+                send_set_state(NAV_STATE_RTL, MOVE_NONE);
+            } else {
+                send_set_state(NAV_STATE_LOITER, MOVE_DOWN);
+            }
             break;
         case 2:
         	// PLAY button
@@ -455,18 +459,7 @@ void i2c_button_pressed(struct i2c_button_s *button)
         case 4:
         	// CENTER button
             //
-        	if (button->started)
-            	{
-            		set_symbols(SYMBOL_0, SYMBOL_F, SYMBOL_EMPTY);
-                	mavlink_log_info(_mavlink_fd, "Logging should stop");
-                	send_record_path_cmd(false);
-               		button->started = false;
-            	} else {
-            		set_symbols(SYMBOL_P, SYMBOL_A, SYMBOL_EMPTY);
-              		mavlink_log_info(_mavlink_fd, "Logging should start");
-					send_record_path_cmd(true);
-              		button->started = true;
-            	}
+            send_set_state(NAV_STATE_COME_HERE, MOVE_NONE);
             break;
         case 5:
         	// CENTER DOWN

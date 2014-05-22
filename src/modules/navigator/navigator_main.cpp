@@ -69,6 +69,7 @@
 #include <uORB/topics/mission.h>
 #include <uORB/topics/fence.h>
 #include <uORB/topics/navigation_capabilities.h>
+#include <uORB/topics/vehicle_attitude_setpoint.h>
 #include <systemlib/param/param.h>
 #include <systemlib/err.h>
 #include <systemlib/state_table.h>
@@ -154,6 +155,7 @@ private:
 	int 		_onboard_mission_sub;		/**< notification of onboard mission updates */
 	int		_capabilities_sub;		/**< notification of vehicle capabilities updates */
 	int		_control_mode_sub;		/**< vehicle control mode subscription */
+    int     _v_att_setpoint_sub;    /**< vehicle attitude subscription*/
 
 	orb_advert_t	_pos_sp_triplet_pub;			/**< publish position setpoint triplet */
 	orb_advert_t	_mission_result_pub;		/**< publish mission result topic */
@@ -432,7 +434,7 @@ Navigator::Navigator() :
 	_onboard_mission_sub(-1),
 	_capabilities_sub(-1),
 	_control_mode_sub(-1),
-
+    _v_att_setpoint_sub(-1),
 
 /* publications */
 	_pos_sp_triplet_pub(-1),
@@ -684,6 +686,7 @@ Navigator::task_main()
 	_control_mode_sub = orb_subscribe(ORB_ID(vehicle_control_mode));
 	_params_sub = orb_subscribe(ORB_ID(parameter_update));
 	_home_pos_sub = orb_subscribe(ORB_ID(home_position));
+    _v_att_setpoint_sub = orb_subscribe(ORB_ID(vehicle_attitude_setpoint));
 
 	/* copy all topics first time */
 	vehicle_status_update();
@@ -2082,18 +2085,26 @@ Navigator::start_move()
 
             math::Matrix<3, 3> R_phi;
             if (direction == MOVE_LEFT) {
-                R_phi.from_euler(0.0f, 0.0f, -alpha);
-            } else {
                 R_phi.from_euler(0.0f, 0.0f, alpha);
+            } else {
+                R_phi.from_euler(0.0f, 0.0f, -alpha);
             }
             offset = R_phi * offset;
         } else if (direction == MOVE_CLOSER || direction == MOVE_FARTHER) {
             if (direction == MOVE_CLOSER) {
-                offset(0) = (-LOITER_ADJUSTMENT) * cosf(phi);
-                offset(1) = (-LOITER_ADJUSTMENT) * sinf(phi);
-            } else {
+                if (r <= LOITER_ADJUSTMENT) {
+                    return;
+                }
                 offset(0) = LOITER_ADJUSTMENT * cosf(phi);
                 offset(1) = LOITER_ADJUSTMENT * sinf(phi);
+            } else {
+                if (r <= LOITER_ADJUSTMENT) {
+                    struct vehicle_attitude_setpoint_s setpoint;
+	                orb_copy(ORB_ID(vehicle_attitude_setpoint), _v_att_setpoint_sub, &setpoint);
+                    phi = setpoint.yaw_body;
+                }
+                offset(0) = - LOITER_ADJUSTMENT * cosf(phi);
+                offset(1) = - LOITER_ADJUSTMENT * sinf(phi);
             }
         }
     }
@@ -2119,7 +2130,6 @@ Navigator::start_move()
     _pos_sp_triplet.current.lon = new_lon;
 
     _pos_sp_triplet_updated = true;
-    mavlink_log_info(_mavlink_fd, "current alt %d, desired alt %d", _global_pos.alt, _pos_sp_triplet.current.alt)
 }
 
 
