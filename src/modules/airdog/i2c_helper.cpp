@@ -39,10 +39,10 @@ I2C_CONTROLLER *_listener;
 I2C_DISPLAY_CONTROLLER *_display;
 }
 
-void start_listener(int adress)
+void start_listener()
 {
     int i2cdevice = -1;
-	int main_adr = LISTENER_ADDR;
+    int main_adr = LISTENER_ADDR;
     int display_addr = DISPLAY_ADDR; /* 7bit */
 
     if (_listener != nullptr)
@@ -60,13 +60,13 @@ void start_listener(int adress)
         }
     }
 
-        _display = new I2C_DISPLAY_CONTROLLER(i2cdevice, display_addr);
-        int ret = _display->init();
-        if (_display != nullptr && OK != ret) {
-            delete _display;
-            _display = nullptr;
-            warnx("created but not inited with code: %d", ret);
-        }
+    _display = new I2C_DISPLAY_CONTROLLER(i2cdevice, display_addr);
+    int ret = _display->init();
+    if (_display != nullptr && OK != ret) {
+        delete _display;
+        _display = nullptr;
+        warnx("created but not inited with code: %d", ret);
+    }
 
     if (_listener) {
         _listener->start_listening();

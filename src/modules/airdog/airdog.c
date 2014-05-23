@@ -28,11 +28,6 @@
 
 #define LONG_PRESS_TIME 150
 
-enum REMOTE_BUTTON_STATE {
-	PAUSE=1,
-	START=2,
-};
-
 enum MAV_MODE_FLAG {
 	MAV_MODE_FLAG_CUSTOM_MODE_ENABLED = 1, /* 0b00000001 Reserved for future use. | */
 	MAV_MODE_FLAG_TEST_ENABLED = 2, /* 0b00000010 system has a test mode enabled. This flag is intended for temporary system tests and should not be used for stable implementations. | */
@@ -46,7 +41,6 @@ enum MAV_MODE_FLAG {
 };
 
 struct gpio_button_s {
-	enum REMOTE_BUTTON_STATE state;
 	int pin;
 	bool button_pressed;
 	bool long_press;
@@ -98,6 +92,7 @@ static int _mavlink_fd;
 bool _hil;
 bool _armed;
 bool _drone_active;
+bool _log_running;
 struct airdog_status_s _airdog_status;
 uint64_t _last_drone_timestamp;
 
@@ -154,7 +149,7 @@ int airdog_main(int argc, char *argv[])
 
     if (!strcmp(argv[1], "i2c")) {
         int hex = strtol(argv[2], NULL, 16);
-        start_listener(hex);
+        start_listener();
     }
 
 	usage("unrecognized command");
@@ -241,22 +236,16 @@ void airdog_start(FAR void *arg)
 
 	priv->base_mode = MAV_MODE_FLAG_SAFETY_ARMED | MAV_MODE_FLAG_CUSTOM_MODE_ENABLED;
 	priv->button1.pin = 0;
-	priv->button1.state = PAUSE;
 
 	priv->button2.pin = 1;
-	priv->button2.state = START;
 
 	priv->button3.pin = 2;
-	priv->button3.state = PAUSE;
 
 	priv->button4.pin = 3;
-	priv->button4.state = PAUSE;
 
 	priv->button5.pin = 4;
-	priv->button5.state = PAUSE;
 
 	priv->button6.pin = 5;
-	priv->button6.state = PAUSE;
 
 	/* open GPIO device */
 	priv->gpio_fd = open(PX4FMU_DEVICE_PATH, 0);
@@ -290,7 +279,8 @@ void airdog_start(FAR void *arg)
     _mavlink_fd = open(MAVLINK_LOG_DEVICE, 0);
     mavlink_log_info(_mavlink_fd, "[mpc] started");
 
-    start_listener(0x20);
+    _log_running = false;
+    start_listener();
 };
 
 void check_button(struct gpio_button_s *button, uint32_t gpio_values) {
@@ -341,15 +331,14 @@ void button_pressed(struct gpio_button_s *button, bool long_press) {
 					send_set_state(NAV_STATE_TAKEOFF, MOVE_NONE);
 				}
 			} else if (!_drone_active) {
-				if (button->state == PAUSE)
-            	{
+				if (!_log_running) {
                 	mavlink_log_info(_mavlink_fd, "Logging should start");
                 	send_record_path_cmd(true);
-               		button->state = START;
+               		_log_running = true;
             	} else {
               		mavlink_log_info(_mavlink_fd, "Logging should stop");
 					send_record_path_cmd(false);
-              		button->state = PAUSE;
+              		_log_running = false;
             	}
 			} else {
 				if (long_press)
@@ -376,15 +365,14 @@ void button_pressed(struct gpio_button_s *button, bool long_press) {
 			send_set_state(NAV_STATE_LOITER, MOVE_UP);
 			break;
 		case 3:
-            if (button->state == PAUSE)
-            {
+            if (!_log_running) {
                 mavlink_log_info(_mavlink_fd, "Logging should start");
                 send_record_path_cmd(true);
-                button->state = START;
+                _log_running = true;
             } else {
                 mavlink_log_info(_mavlink_fd, "Logging should stop");
                 send_record_path_cmd(false);
-                button->state = PAUSE;
+                _log_running = false;
             }
             break;
 		case 4:

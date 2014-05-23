@@ -26,7 +26,7 @@ typedef enum {
 #ifdef __cplusplus /* If this is a C++ compiler, use C linkage */
 extern "C" {
 #endif
-    void start_listener(int adress);
+    void start_listener(void);
     void stop_listener(void);
     __EXPORT void set_symbols(symbol_t first, symbol_t second, symbol_t third);
     __EXPORT void set_green_led_on(bool set_on);
