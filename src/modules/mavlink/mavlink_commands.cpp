@@ -44,6 +44,9 @@ MavlinkCommandsStream::MavlinkCommandsStream(Mavlink *mavlink, mavlink_channel_t
 {
 	_cmd_sub = mavlink->add_orb_subscription(ORB_ID(vehicle_command));
 	_cmd = (struct vehicle_command_s *)_cmd_sub->get_data();
+
+    _set_param_cmd_sub = mavlink->add_orb_subscription(ORB_ID(set_drone_parameter));
+    _set_param_cmd = (struct set_drone_param_s *)_set_param_cmd_sub->get_data();
 }
 
 MavlinkCommandsStream::~MavlinkCommandsStream()
@@ -69,5 +72,14 @@ MavlinkCommandsStream::update(const hrt_abstime t)
 						      _cmd->param6,
 						      _cmd->param7);
 		}
-	}
+    } else if (_set_param_cmd_sub->update(t)) {
+        if (_cmd->target_system != mavlink_system.sysid || _cmd->target_component != mavlink_system.compid) {
+            mavlink_msg_param_set_send(_channel,
+                    _set_param_cmd->target_system,
+                    _set_param_cmd->target_component,
+                    _set_param_cmd->param_id,
+                    _set_param_cmd->param_value,
+                    _set_param_cmd->param_type);
+        }
+    }
 }

@@ -10,6 +10,7 @@
 #include <fcntl.h>
 
 #include <systemlib/systemlib.h>
+#include <systemlib/param/param.h>
 #include <systemlib/err.h>
 #include <uORB/topics/vehicle_command.h>
 #include <uORB/topics/vehicle_status.h>
@@ -17,6 +18,7 @@
 #include <uORB/topics/airdog_status.h>
 #include <uORB/topics/airdog_path_log.h>
 #include <uORB/topics/i2c_button_status.h>
+#include <uORB/topics/set_drone_parameter.h>
 
 #include <drivers/drv_gpio.h>
 #include <commander/px4_custom_mode.h>
@@ -27,6 +29,7 @@
 #include "i2c_helper.h"
 
 #define LONG_PRESS_TIME 150
+#define LAND_HOME_PARAM "NAV_LAND_HOME"
 
 enum MAV_MODE_FLAG {
 	MAV_MODE_FLAG_CUSTOM_MODE_ENABLED = 1, /* 0b00000001 Reserved for future use. | */
@@ -39,6 +42,24 @@ enum MAV_MODE_FLAG {
 	MAV_MODE_FLAG_SAFETY_ARMED = 128, /* 0b10000000 MAV safety set to armed. Motors are enabled / running / can start. Ready to fly. | */
 	MAV_MODE_FLAG_ENUM_END = 129, /*  | */
 };
+
+#ifndef HAVE_ENUM_MAV_PARAM_TYPE
+#define HAVE_ENUM_MAV_PARAM_TYPE
+enum MAV_PARAM_TYPE
+{
+	MAV_PARAM_TYPE_UINT8=1, /* 8-bit unsigned integer | */
+	MAV_PARAM_TYPE_INT8=2, /* 8-bit signed integer | */
+	MAV_PARAM_TYPE_UINT16=3, /* 16-bit unsigned integer | */
+	MAV_PARAM_TYPE_INT16=4, /* 16-bit signed integer | */
+	MAV_PARAM_TYPE_UINT32=5, /* 32-bit unsigned integer | */
+	MAV_PARAM_TYPE_INT32=6, /* 32-bit signed integer | */
+	MAV_PARAM_TYPE_UINT64=7, /* 64-bit unsigned integer | */
+	MAV_PARAM_TYPE_INT64=8, /* 64-bit signed integer | */
+	MAV_PARAM_TYPE_REAL32=9, /* 32-bit floating-point | */
+	MAV_PARAM_TYPE_REAL64=10, /* 64-bit floating-point | */
+	MAV_PARAM_TYPE_ENUM_END=11, /*  | */
+};
+#endif
 
 struct gpio_button_s {
 	int pin;
@@ -66,6 +87,7 @@ static struct airdog_app_s airdog_data;
 static bool airdog_running = false;
 static orb_advert_t cmd_pub = -1;
 static orb_advert_t cmd_log_start = -1;
+static orb_advert_t cmd_set_param = -1;
 
 __EXPORT int airdog_main(int argc, char *argv[]);
 
@@ -83,7 +105,7 @@ void send_set_mode(uint8_t base_mode, uint8_t custom_main_mode);
 void send_set_state(uint8_t state, uint8_t direction);
 void display_drone_state();
 void send_record_path_cmd(bool start);
-
+void send_set_parameter_cmd(char *param_name, int *value);
 /**
  * Print the correct usage.
  */
@@ -95,6 +117,8 @@ bool _drone_active;
 bool _log_running;
 struct airdog_status_s _airdog_status;
 uint64_t _last_drone_timestamp;
+
+static param_t _should_land_on_home;
 
 static void
 usage(const char *reason)
@@ -212,6 +236,25 @@ void send_set_state(enum NAV_STATE state, enum AUTO_MOVE_DIRECTION direction) {
 	}
 }
 
+void send_set_parameter_cmd(char *param_name, int *value)
+{
+    struct set_drone_param_s cmd;
+	memset(&cmd, 0, sizeof(cmd));
+
+    float *val = (float *)value;
+    cmd.param_value = *val;
+    cmd.target_system = 1;
+    cmd.target_component = 50;
+    strncpy(cmd.param_id, param_name, 16);
+    cmd.param_type = MAV_PARAM_TYPE_INT32;
+
+    if (cmd_set_param < 0) {
+		cmd_set_param = orb_advertise(ORB_ID(set_drone_parameter), &cmd);
+	} else {
+		orb_publish(ORB_ID(set_drone_parameter), cmd_set_param, &cmd);
+	}
+}
+
 void send_record_path_cmd(bool start)
 {
     struct airdog_path_log_s cmd;
@@ -280,6 +323,9 @@ void airdog_start(FAR void *arg)
     mavlink_log_info(_mavlink_fd, "[mpc] started");
 
     _log_running = false;
+
+    _should_land_on_home = param_find(LAND_HOME_PARAM);
+
     start_listener();
 };
 
@@ -402,7 +448,19 @@ void i2c_button_pressed(struct i2c_button_s *button)
         case 1:
         	// DOWN button
             if (long_press) {
-                send_set_state(NAV_STATE_RTL, MOVE_NONE);
+                int zero = 0;
+                int one = 1;
+                if (_should_land_on_home != PARAM_INVALID) {
+                    int32_t should_land_on_home = 0;
+                    param_get(_should_land_on_home, &should_land_on_home);
+                    if (should_land_on_home == 1) {
+                        send_set_parameter_cmd(LAND_HOME_PARAM, &zero);
+                        param_set(_should_land_on_home, &zero);
+                    } else {
+                        send_set_parameter_cmd(LAND_HOME_PARAM, &one);
+                        param_set(_should_land_on_home, &one);
+                    }
+                }
             } else {
                 send_set_state(NAV_STATE_LOITER, MOVE_DOWN);
             }

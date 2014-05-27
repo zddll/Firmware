@@ -43,6 +43,7 @@
 
 #include <uORB/uORB.h>
 #include <uORB/topics/vehicle_command.h>
+#include <uORB/topics/set_drone_parameter.h>
 
 class Mavlink;
 class MavlinkCommansStream;
@@ -53,7 +54,9 @@ class MavlinkCommandsStream
 {
 private:
 	MavlinkOrbSubscription *_cmd_sub;
+    MavlinkOrbSubscription *_set_param_cmd_sub;
 	struct vehicle_command_s *_cmd;
+    struct set_drone_param_s *_set_param_cmd;
 	mavlink_channel_t _channel;
 
 public:

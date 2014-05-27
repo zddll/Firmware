@@ -795,7 +795,6 @@ void Mavlink::mavlink_pm_message_handler(const mavlink_channel_t chan, const mav
 		} break;
 
 	case MAVLINK_MSG_ID_PARAM_SET: {
-
 			/* Handle parameter setting */
 
 			if (msg->msgid == MAVLINK_MSG_ID_PARAM_SET) {
@@ -818,6 +817,7 @@ void Mavlink::mavlink_pm_message_handler(const mavlink_channel_t chan, const mav
 
 					} else {
 						/* set and send parameter */
+                        mavlink_log_info(_mavlink_fd, "MAVLINK_MSG_ID_PARAM_SET!");
 						param_set(param, &(mavlink_param_set.param_value));
 						mavlink_pm_send_param(param);
 					}

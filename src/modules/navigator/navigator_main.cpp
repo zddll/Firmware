@@ -157,6 +157,8 @@ private:
 	int		_control_mode_sub;		/**< vehicle control mode subscription */
     int     _v_att_setpoint_sub;    /**< vehicle attitude subscription*/
 
+    param_t _should_land_on_home;
+
 	orb_advert_t	_pos_sp_triplet_pub;			/**< publish position setpoint triplet */
 	orb_advert_t	_mission_result_pub;		/**< publish mission result topic */
 	orb_advert_t 	_cmd_pub;
@@ -495,7 +497,7 @@ Navigator::Navigator() :
 	_afollow_offset.zero();
 	_afollow_offset(2) = -20.0f;
 
-
+    _should_land_on_home = param_find("NAV_LAND_HOME");
 	/* Initialize state machine */
 	myState = NAV_STATE_NONE;
 	start_none();
@@ -787,7 +789,15 @@ Navigator::task_main()
 
 						break;
 
-					case NAV_STATE_LAND:
+                    case NAV_STATE_LAND:
+                        if (_should_land_on_home != PARAM_INVALID) {
+                            uint32_t should_land_on_home = 0;
+                            param_get(_should_land_on_home, &should_land_on_home);
+                            if (should_land_on_home == 1) {
+                                dispatch(EVENT_RTL_REQUESTED);
+                                break;
+                            }
+                        } 
 						dispatch(EVENT_LAND_REQUESTED);
 						break;
 
@@ -1212,6 +1222,7 @@ Navigator::start_loiter()
 	reset_reached();
 
 	_do_takeoff = false;
+    _rtl_state = RTL_STATE_NONE;
 
 	/* set loiter position if needed */
 	if (_reset_loiter_pos || !_pos_sp_triplet.current.valid) {

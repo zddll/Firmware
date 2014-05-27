@@ -211,3 +211,6 @@ ORB_DEFINE(airdog_path_log, struct airdog_path_log_s);
 
 #include "topics/i2c_button_status.h"
 ORB_DEFINE(i2c_button_status, struct i2c_button_s);
+
+#include "topics/set_drone_parameter.h"
+ORB_DEFINE(set_drone_parameter, struct set_drone_param_s);
