@@ -190,6 +190,7 @@ private:
 
 	struct follow_offset_s	_follow_offset_prev;		/**< offset from target for previous "follow" waypoint */
 	struct follow_offset_s	_follow_offset_next;		/**< offset from target for next "follow" waypoint */
+	float _follow_progress;
 
 	math::Vector<3>  _afollow_offset;			/**< offset from target for AFOLLOW mode */
 
@@ -231,6 +232,7 @@ private:
 		float land_alt;
 		float rtl_alt;
 		float rtl_land_delay;
+		int use_target_alt;
 	}		_parameters;			/**< local copies of parameters */
 
 	struct {
@@ -242,6 +244,7 @@ private:
 		param_t land_alt;
 		param_t rtl_alt;
 		param_t rtl_land_delay;
+		param_t use_target_alt;
 	}		_parameter_handles;		/**< handles for parameters */
 
 	enum Event {
@@ -464,7 +467,8 @@ Navigator::Navigator() :
 	_roi_item_valid(false),
 	_target_lat(0.0),
 	_target_lon(0.0),
-	_target_alt(0.0f)
+	_target_alt(0.0f),
+	_follow_progress(0.0f)
 {
 	_parameter_handles.min_altitude = param_find("NAV_MIN_ALT");
 	_parameter_handles.acceptance_radius = param_find("NAV_ACCEPT_RAD");
@@ -474,6 +478,7 @@ Navigator::Navigator() :
 	_parameter_handles.land_alt = param_find("NAV_LAND_ALT");
 	_parameter_handles.rtl_alt = param_find("NAV_RTL_ALT");
 	_parameter_handles.rtl_land_delay = param_find("NAV_RTL_LAND_T");
+	_parameter_handles.use_target_alt = param_find("NAV_USE_T_ALT");
 
 	memset(&_pos_sp_triplet, 0, sizeof(struct position_setpoint_triplet_s));
 	memset(&_mission_item, 0, sizeof(struct mission_item_s));
@@ -543,6 +548,7 @@ Navigator::parameters_update()
 	param_get(_parameter_handles.land_alt, &(_parameters.land_alt));
 	param_get(_parameter_handles.rtl_alt, &(_parameters.rtl_alt));
 	param_get(_parameter_handles.rtl_land_delay, &(_parameters.rtl_land_delay));
+	param_get(_parameter_handles.use_target_alt, &(_parameters.use_target_alt));
 
 	_mission.set_onboard_mission_allowed((bool)_parameter_handles.onboard_mission_enabled);
 
@@ -946,7 +952,34 @@ Navigator::task_main()
 
 			/* predict current target position */
 			add_vector_to_global_position(_target_pos.lat, _target_pos.lon, dpos(0), dpos(1), &_target_lat, &_target_lon);
-			_target_alt = _target_pos.alt - dpos(2);
+			_target_alt = _parameters.use_target_alt ? (_target_pos.alt - dpos(2)) : 0.0f;
+
+			if (_follow_offset_prev.valid && _follow_offset_next.valid) {
+				math::Vector<3> trajectory;
+				get_vector_to_next_waypoint_fast(_follow_offset_prev.lat, _follow_offset_prev.lon,
+						_follow_offset_next.lat, _follow_offset_next.lon,
+						&trajectory.data[0], &trajectory.data[1]);
+				trajectory(2) = -(_follow_offset_next.alt - _follow_offset_prev.alt);
+
+				math::Vector<3> pos;
+				get_vector_to_next_waypoint_fast(_follow_offset_prev.lat, _follow_offset_prev.lon,
+						_target_lat, _target_lon,
+						&pos.data[0], &pos.data[1]);
+				pos(2) = -(_target_alt - _follow_offset_prev.alt);
+
+				if (trajectory.length_squared() > 0.01f) {
+					_follow_progress = fminf(1.0f, fmaxf(0.0f, pos * trajectory / trajectory.length_squared()));
+
+				} else {
+					_follow_progress = 1.0f;
+				}
+
+			} else if (_follow_offset_prev.valid) {
+				_follow_progress = 0.0f;
+
+			} else if (_follow_offset_next.valid) {
+				_follow_progress = 1.0f;
+			}
 		}
 
 		/* publish position setpoint triplet if updated */
@@ -1260,6 +1293,7 @@ void
 Navigator::start_mission()
 {
 	_need_takeoff = true;
+	_follow_offset_next.valid = false;
 
 	set_mission_item();
 }
@@ -1303,15 +1337,23 @@ Navigator::set_mission_item()
 				memcpy(&_follow_offset_prev, &_follow_offset_next, sizeof(_follow_offset_prev));
 
 				/* set offset for target following items */
+				float roi_alt_amsl;
+				if (_parameters.use_target_alt) {
+					roi_alt_amsl = _roi_item.altitude_is_relative ? (_roi_item.altitude + _home_pos.alt) : _roi_item.altitude;
+				} else {
+					roi_alt_amsl = 0.0f;
+				}
+
 				_follow_offset_next.valid = true;
 				_follow_offset_next.lat = _roi_item.lat;
 				_follow_offset_next.lon = _roi_item.lon;
-				_follow_offset_next.alt = _roi_item.altitude;
+				_follow_offset_next.alt = roi_alt_amsl;
 				get_vector_to_next_waypoint_fast(
 						_roi_item.lat, _roi_item.lon,
 						_mission_item.lat, _mission_item.lon,
 						&_follow_offset_next.offset.data[0], &_follow_offset_next.offset.data[1]);
-				_follow_offset_next.offset(2) = -(_mission_item.altitude - _roi_item.altitude);
+				float wp_alt_amsl = _mission_item.altitude_is_relative ? (_mission_item.altitude + _home_pos.alt) : _mission_item.altitude;
+				_follow_offset_next.offset(2) = -(wp_alt_amsl - roi_alt_amsl);
 				_follow_offset_next.yaw = _mission_item.yaw;
 				mavlink_log_info(_mavlink_fd, "f offs: %d %.2f %.2f %.2f -> %d %.2f %.2f %.2f",
 						_follow_offset_prev.valid, _follow_offset_prev.offset(0), _follow_offset_prev.offset(1), _follow_offset_prev.offset(2),
@@ -1656,7 +1698,7 @@ Navigator::position_setpoint_from_mission_item(position_setpoint_s *sp, mission_
 	} else {
 		sp->lat = item->lat;
 		sp->lon = item->lon;
-		sp->alt = item->altitude_is_relative ? item->altitude + _home_pos.alt : item->altitude;
+		sp->alt = item->altitude_is_relative ? (item->altitude + _home_pos.alt) : item->altitude;
 		sp->yaw = item->yaw;
 		sp->loiter_radius = item->loiter_radius;
 		sp->loiter_direction = item->loiter_direction;
@@ -1705,7 +1747,6 @@ Navigator::check_mission_item_reached()
 
 	/* XXX TODO count turns */
 	if ((_mission_item.nav_cmd == NAV_CMD_LOITER_TURN_COUNT ||
-	     _mission_item.nav_cmd == NAV_CMD_LOITER_TIME_LIMIT ||
 	     _mission_item.nav_cmd == NAV_CMD_LOITER_UNLIMITED) &&
 	    _mission_item.loiter_radius > 0.01f) {
 
@@ -1727,15 +1768,9 @@ Navigator::check_mission_item_reached()
 			acceptance_radius = _parameters.acceptance_radius;
 		}
 
-		/* calculate AMSL altitude for this waypoint */
-		float wp_alt_amsl = _mission_item.altitude;
-
-		if (_mission_item.altitude_is_relative)
-			wp_alt_amsl += _home_pos.alt;
-
 		if (_do_takeoff) {
 			/* require only altitude for takeoff */
-			if (_global_pos.alt > wp_alt_amsl - acceptance_radius)  {
+			if (_global_pos.alt > _pos_sp_triplet.current.alt - acceptance_radius) {
 				_waypoint_position_reached = true;
 			}
 
@@ -1747,13 +1782,19 @@ Navigator::check_mission_item_reached()
 				get_vector_to_next_waypoint_fast(_target_lat, _target_lon, _follow_offset_next.lat, _follow_offset_next.lon, &current_offset.data[0], &current_offset.data[1]);
 				current_offset(2) = -(_follow_offset_next.alt - _target_alt);
 
-				if (current_offset.length() <= acceptance_radius) {
+				if (current_offset.length() <= acceptance_radius && _follow_progress >= 1.0f) {
 					_waypoint_position_reached = true;
 				}
 
 				_waypoint_yaw_reached = true;
 
 			} else {
+				/* calculate AMSL altitude for this waypoint */
+				float wp_alt_amsl = _mission_item.altitude;
+
+				if (_mission_item.altitude_is_relative)
+					wp_alt_amsl += _home_pos.alt;
+
 				float dist_xy = -1.0f;
 				float dist_z = -1.0f;
 
@@ -1829,7 +1870,14 @@ Navigator::on_mission_item_reached()
 		}
 
 		if (_mission.current_mission_available()) {
-			set_mission_item();
+			if (_mission_item.autocontinue) {
+				/* continue mission */
+				set_mission_item();
+
+			} else {
+				/* autocontinue disabled for this item */
+				request_loiter_or_ready();
+			}
 
 		} else {
 			/* if no more mission items available then finish mission */
@@ -1931,7 +1979,7 @@ Navigator::publish_position_setpoint_triplet()
 	if (myState == NAV_STATE_MISSION && _roi_item_valid && _roi_item.roi_mode == ROI_MODE_FOLLOW &&
 			(_follow_offset_prev.valid || _follow_offset_next.valid) && _vstatus.condition_target_position_valid && !_do_takeoff) {
 		_pos_sp_triplet.current.valid = true;
-		_pos_sp_triplet.current.type = SETPOINT_TYPE_NORMAL;
+		_pos_sp_triplet.current.type = SETPOINT_TYPE_MOVING;
 
 		/* calculate current desired offset from target position and relative yaw */
 		math::Vector<3> offset;
@@ -1946,17 +1994,8 @@ Navigator::publish_position_setpoint_triplet()
 			yaw_relative = _follow_offset_prev.yaw;
 
 		} else {
-			float dist_prev = get_distance_to_point_global_wgs84(
-					_target_lat, _target_lon, _target_alt,
-					_follow_offset_prev.lat, _follow_offset_prev.lon, _follow_offset_prev.alt,
-					NULL, NULL);
-			float dist_next = get_distance_to_point_global_wgs84(
-					_target_lat, _target_lon, _target_alt,
-					_follow_offset_next.lat, _follow_offset_next.lon, _follow_offset_next.alt,
-					NULL, NULL);
-			float progress = dist_prev / (dist_prev + dist_next);
-			offset = _follow_offset_prev.offset + (_follow_offset_next.offset - _follow_offset_prev.offset) * progress;
-			yaw_relative = _follow_offset_prev.yaw + (_follow_offset_next.yaw - _follow_offset_prev.yaw) * progress;
+			offset = _follow_offset_prev.offset + (_follow_offset_next.offset - _follow_offset_prev.offset) * _follow_progress;
+			yaw_relative = _follow_offset_prev.yaw + (_follow_offset_next.yaw - _follow_offset_prev.yaw) * _follow_progress;
 		}
 
 		/* add offset to target position */

@@ -1001,6 +1001,8 @@ void *MavlinkReceiver::start_helper(void *context)
 	rcv->receive_thread(NULL);
 
 	delete rcv;
+
+	return nullptr;
 }
 
 pthread_t
