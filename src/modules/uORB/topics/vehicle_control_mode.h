@@ -82,7 +82,8 @@ struct vehicle_control_mode_s {
 	bool flag_control_climb_rate_enabled;	/**< true if climb rate is controlled */
 	bool flag_control_termination_enabled;	/**< true if flighttermination is enabled */
 	bool flag_follow_target;				/**< true if vehicle must follow target */
-	bool flag_point_to_target;				/**< true if camera should be pointed to the target */
+	bool flag_point_yaw_to_target;				/**< true if yaw should be pointed to the target */
+	bool flag_point_pitch_to_target;				/**< true if camera should be pointed to the target */
 };
 
 /**

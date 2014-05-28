@@ -285,3 +285,23 @@ PARAM_DEFINE_FLOAT(MPC_FW_LPF, 0.0f);
  * @group Multicopter Position Control
  */
 PARAM_DEFINE_FLOAT(MPC_CAM_P_MAX, 90.0f);
+
+/**
+ * Turn off automatic YAW
+ *
+ * in FOLLOW and AUTO modes
+ *
+ * @unit meters
+ * @group Multicopter Position Control
+ */
+PARAM_DEFINE_FLOAT(MPC_YAW_OFF, 0.0f);
+
+/**
+ * Turn off automatic pitch
+ *
+ * in FOLLOW and AUTO modes
+ *
+ * @unit meters
+ * @group Multicopter Position Control
+ */
+PARAM_DEFINE_FLOAT(MPC_PITCH_OFF, 0.0f);

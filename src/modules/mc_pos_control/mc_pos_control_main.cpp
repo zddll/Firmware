@@ -164,6 +164,8 @@ private:
 		param_t follow_use_alt;
 		param_t follow_lpf;
 		param_t cam_pitch_max;
+		param_t auto_yaw_off;
+		param_t auto_pitch_off;
 	}		_params_handles;		/**< handles for interesting parameters */
 
 	struct {
@@ -179,6 +181,8 @@ private:
 		bool follow_use_alt;
 		float follow_lpf;
 		float cam_pitch_max;
+		float auto_yaw_off;
+		float auto_pitch_off;
 
 		math::Vector<3> pos_p;
 		math::Vector<3> vel_p;
@@ -377,6 +381,8 @@ MulticopterPositionControl::MulticopterPositionControl() :
 	_params_handles.follow_use_alt	= param_find("MPC_FW_USE_ALT");
 	_params_handles.follow_lpf	= param_find("MPC_FW_LPF");
 	_params_handles.cam_pitch_max	= param_find("MPC_CAM_P_MAX");
+	_params_handles.auto_yaw_off	= param_find("MPC_YAW_OFF");
+	_params_handles.auto_pitch_off	= param_find("MPC_PITCH_OFF");
 
 	/* fetch initial parameter values */
 	parameters_update(true);
@@ -434,6 +440,8 @@ MulticopterPositionControl::parameters_update(bool force)
 		param_get(_params_handles.follow_lpf, &_params.follow_lpf);
 		param_get(_params_handles.cam_pitch_max, &_params.cam_pitch_max);
 		_params.cam_pitch_max = math::radians(_params.cam_pitch_max);
+		param_get(_params_handles.auto_yaw_off, &_params.auto_yaw_off);
+		param_get(_params_handles.auto_pitch_off, &_params.auto_pitch_off);
 
 		int32_t i;
 		param_get(_params_handles.follow_use_alt, &i);
@@ -632,7 +640,7 @@ MulticopterPositionControl::control_sp_follow(float dt)
 	float follow_offset_xy_len = follow_offset_xy.length();
 
 	if (sp_move_rate_xy.length_squared() > 0.0f) {
-		if (_control_mode.flag_point_to_target && follow_offset_xy_len > FOLLOW_OFFS_XY_MIN) {
+		if (_control_mode.flag_point_yaw_to_target && follow_offset_xy_len > FOLLOW_OFFS_XY_MIN) {
 			/* calculate change rate in polar coordinates phi, d */
 			float rate_phi = -sp_move_rate_xy(1) / follow_offset_xy_len;
 			float rate_d = -sp_move_rate_xy(0);
@@ -691,14 +699,14 @@ MulticopterPositionControl::control_sp_follow(float dt)
 void
 MulticopterPositionControl::control_camera()
 {
-	if (_control_mode.flag_point_to_target) {
-		/* change yaw to keep direction to target */
-		/* calculate current offset (not offset setpoint) */
-		math::Vector<3> current_offset = _pos - _tpos;
-		math::Vector<2> current_offset_xy(current_offset(0), current_offset(1));
+	/* calculate current offset (not offset setpoint) */
+	math::Vector<3> current_offset = _pos - _tpos;
+	math::Vector<2> current_offset_xy(current_offset(0), current_offset(1));
+	float current_offset_xy_len = current_offset_xy.length();
 
+	if (!_params.auto_yaw_off && _control_mode.flag_point_yaw_to_target) {
+		/* change yaw to keep direction to target */
 		/* don't try to rotate near singularity */
-		float current_offset_xy_len = current_offset_xy.length();
 		if (current_offset_xy_len > FOLLOW_OFFS_XY_MIN) {
 			/* calculate yaw setpoint from current positions and control offset with yaw stick */
 			_att_sp.yaw_body = _wrap_pi(atan2f(-current_offset_xy(1), -current_offset_xy(0)) + _manual.r * _params.follow_yaw_max);
@@ -707,9 +715,12 @@ MulticopterPositionControl::control_camera()
 			math::Vector<2> offs_vel_xy(_vel(0) - _tvel(0), _vel(1) - _tvel(1));
 			_att_rates_ff(2) = (current_offset_xy % offs_vel_xy) / current_offset_xy_len / current_offset_xy_len;
 		}
-
+	}
+	if(!_params.auto_pitch_off && _control_mode.flag_point_pitch_to_target) {
 		/* control camera pitch in global frame (for BL camera gimbal) */
 		_cam_control.control[1] = atan2f(current_offset(2), current_offset_xy_len) / _params.cam_pitch_max + _manual.aux2;
+		//mavlink_log_info(_mavlink_fd, "drone: %.2f target: %.2f offset: %.2f", _pos(2), _tpos(2), current_offset(2));
+		//mavlink_log_info(_mavlink_fd, "camera alt: %.2f xy_len: %.2f result: %.2f", current_offset(2), current_offset_xy_len, _cam_control.control[1]);
 
 	} else {
 		/* manual camera pitch control */
@@ -835,7 +846,7 @@ MulticopterPositionControl::task_main()
 		_vel(2) = _local_pos.vz;
 
 		/* project target position to local frame if valid */
-		if (_control_mode.flag_point_to_target || _control_mode.flag_follow_target) {
+		if (_control_mode.flag_point_yaw_to_target || _control_mode.flag_point_pitch_to_target || _control_mode.flag_follow_target) {
 			map_projection_project(&_ref_pos, _target_pos.lat, _target_pos.lon, &_tpos.data[0], &_tpos.data[1]);
 			math::Vector<3> tvel_current;
 			tvel_current(0) = _target_pos.vel_n;
