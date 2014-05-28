@@ -2075,8 +2075,10 @@ Navigator::start_move()
     } else if (direction == MOVE_DOWN) {
         alt = -LOITER_ADJUSTMENT;
     } else {
+        // Attention some polar magic below
         float new_offset_x;
         float new_offset_y;
+        // Getting vector between drone and target
         get_vector_to_next_waypoint_fast(
                 _pos_sp_triplet.current.lat,
                 _pos_sp_triplet.current.lon,
@@ -2084,17 +2086,27 @@ Navigator::start_move()
                 _target_pos.lon,
                 &new_offset_x,
                 &new_offset_y);
+
+        // Converting from Cartesian coord system to polar one.
+        // phi - vector angle
+        // r - vector length
+        //
+        // Now we need to change the length and/or angle to move
+        // the drone properly.
         float phi = atan2f(new_offset_y, new_offset_x);
         float r = sqrt(pow(new_offset_x, 2.0) + pow(new_offset_y, 2.0));
-        float alpha = (M_PI / 2) - asinf(LOITER_ADJUSTMENT / (2 * r));
         if (direction == MOVE_LEFT || direction == MOVE_RIGHT) {
+            // If drone is to near, ignore
             if (r <= LOITER_ADJUSTMENT) {
                 return;
             }
+            // Converting from Polar coord system to cartesian.
             offset(0) = LOITER_ADJUSTMENT * cosf(phi);
             offset(1) = LOITER_ADJUSTMENT * sinf(phi);
 
+            // Rotating vector by alpha radians left or right using Euler angles.
             math::Matrix<3, 3> R_phi;
+            float alpha = (M_PI / 2) - asinf(LOITER_ADJUSTMENT / (2 * r));
             if (direction == MOVE_LEFT) {
                 R_phi.from_euler(0.0f, 0.0f, alpha);
             } else {
@@ -2103,12 +2115,16 @@ Navigator::start_move()
             offset = R_phi * offset;
         } else if (direction == MOVE_CLOSER || direction == MOVE_FARTHER) {
             if (direction == MOVE_CLOSER) {
+                // Too close, ignore.
                 if (r <= LOITER_ADJUSTMENT) {
                     return;
                 }
                 offset(0) = LOITER_ADJUSTMENT * cosf(phi);
                 offset(1) = LOITER_ADJUSTMENT * sinf(phi);
             } else {
+                // If we are too close to singularity, when moving drone back
+                // from target we need to make drone move backward relative to
+                // current yaw.
                 if (r <= LOITER_ADJUSTMENT) {
                     struct vehicle_attitude_setpoint_s setpoint;
 	                orb_copy(ORB_ID(vehicle_attitude_setpoint), _v_att_setpoint_sub, &setpoint);
@@ -2128,15 +2144,12 @@ Navigator::start_move()
 
     double new_lat;
     double new_lon;
+
     add_vector_to_global_position(
             _pos_sp_triplet.current.lat, _pos_sp_triplet.current.lon,
             offset(0), offset(1),
             &new_lat, &new_lon);
-    _pos_sp_triplet.current.yaw = get_bearing_to_next_waypoint(
-            new_lat,
-            new_lon,
-            _target_pos.lat,
-            _target_pos.lon);
+    _pos_sp_triplet.current.yaw = NAN;
     _pos_sp_triplet.current.lat = new_lat;
     _pos_sp_triplet.current.lon = new_lon;
 
