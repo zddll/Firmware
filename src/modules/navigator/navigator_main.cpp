@@ -95,8 +95,6 @@
 #endif
 static const int ERROR = -1;
 
-#define LOITER_ADJUSTMENT 2.0
-
 /**
  * navigator app start / stop handling function
  *
@@ -233,6 +231,7 @@ private:
 		float rtl_alt;
 		float rtl_land_delay;
 		int use_target_alt;
+		float loiter_step;
 	}		_parameters;			/**< local copies of parameters */
 
 	struct {
@@ -245,6 +244,7 @@ private:
 		param_t rtl_alt;
 		param_t rtl_land_delay;
 		param_t use_target_alt;
+		param_t loiter_step;
 	}		_parameter_handles;		/**< handles for parameters */
 
 	enum Event {
@@ -479,6 +479,7 @@ Navigator::Navigator() :
 	_parameter_handles.rtl_alt = param_find("NAV_RTL_ALT");
 	_parameter_handles.rtl_land_delay = param_find("NAV_RTL_LAND_T");
 	_parameter_handles.use_target_alt = param_find("NAV_USE_T_ALT");
+	_parameter_handles.loiter_step = param_find("AIRD_LOITER_STEP");
 
 	memset(&_pos_sp_triplet, 0, sizeof(struct position_setpoint_triplet_s));
 	memset(&_mission_item, 0, sizeof(struct mission_item_s));
@@ -549,6 +550,7 @@ Navigator::parameters_update()
 	param_get(_parameter_handles.rtl_alt, &(_parameters.rtl_alt));
 	param_get(_parameter_handles.rtl_land_delay, &(_parameters.rtl_land_delay));
 	param_get(_parameter_handles.use_target_alt, &(_parameters.use_target_alt));
+	param_get(_parameter_handles.loiter_step, &(_parameters.loiter_step));
 
 	_mission.set_onboard_mission_allowed((bool)_parameter_handles.onboard_mission_enabled);
 
@@ -2110,9 +2112,9 @@ Navigator::start_move()
     double updated_drone_lat = _pos_sp_triplet.current.lat;
     double updated_drone_lon = _pos_sp_triplet.current.lon;
     if (direction == MOVE_UP) {
-        alt = LOITER_ADJUSTMENT;
+        alt = _parameters.loiter_step;
     } else if (direction == MOVE_DOWN) {
-        alt = -LOITER_ADJUSTMENT;
+        alt = -_parameters.loiter_step;
     } else {
         // Attention some polar magic below
         float new_offset_x;
@@ -2136,16 +2138,16 @@ Navigator::start_move()
         float r = sqrt(pow(new_offset_x, 2.0) + pow(new_offset_y, 2.0));
         if (direction == MOVE_LEFT || direction == MOVE_RIGHT) {
             // If drone is to near, ignore
-            if (r <= LOITER_ADJUSTMENT) {
+            if (r <= _parameters.loiter_step) {
                 return;
             }
             // Converting from Polar coord system to cartesian.
-            offset(0) = LOITER_ADJUSTMENT * cosf(phi);
-            offset(1) = LOITER_ADJUSTMENT * sinf(phi);
+            offset(0) = _parameters.loiter_step * cosf(phi);
+            offset(1) = _parameters.loiter_step * sinf(phi);
 
             // Rotating vector by alpha radians left or right using Euler angles.
             math::Matrix<3, 3> R_phi;
-            float alpha = (M_PI / 2) - asinf(LOITER_ADJUSTMENT / (2 * r));
+            float alpha = (M_PI / 2) - asinf(_parameters.loiter_step / (2 * r));
             if (direction == MOVE_LEFT) {
                 R_phi.from_euler(0.0f, 0.0f, alpha);
             } else {
@@ -2155,22 +2157,22 @@ Navigator::start_move()
         } else if (direction == MOVE_CLOSER || direction == MOVE_FARTHER) {
             if (direction == MOVE_CLOSER) {
                 // Too close, ignore.
-                if (r <= LOITER_ADJUSTMENT) {
+                if (r <= _parameters.loiter_step) {
                     return;
                 }
-                offset(0) = LOITER_ADJUSTMENT * cosf(phi);
-                offset(1) = LOITER_ADJUSTMENT * sinf(phi);
+                offset(0) = _parameters.loiter_step * cosf(phi);
+                offset(1) = _parameters.loiter_step * sinf(phi);
             } else {
                 // If we are too close to singularity, when moving drone back
                 // from target we need to make drone move backward relative to
                 // current yaw.
-                if (r <= LOITER_ADJUSTMENT) {
+                if (r <= _parameters.loiter_step) {
                     struct vehicle_attitude_setpoint_s setpoint;
 	                orb_copy(ORB_ID(vehicle_attitude_setpoint), _v_att_setpoint_sub, &setpoint);
                     phi = setpoint.yaw_body;
                 }
-                offset(0) = - LOITER_ADJUSTMENT * cosf(phi);
-                offset(1) = - LOITER_ADJUSTMENT * sinf(phi);
+                offset(0) = - _parameters.loiter_step * cosf(phi);
+                offset(1) = - _parameters.loiter_step * sinf(phi);
             }
         }
     }

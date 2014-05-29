@@ -305,3 +305,13 @@ PARAM_DEFINE_FLOAT(MPC_YAW_OFF, 0.0f);
  * @group Multicopter Position Control
  */
 PARAM_DEFINE_FLOAT(MPC_PITCH_OFF, 0.0f);
+
+/**
+ * Airdog step to adjust position
+ *
+ * in LOITER mode
+ *
+ * @unit meters
+ * @group AirDog
+ */
+PARAM_DEFINE_FLOAT(AIRD_LOITER_STEP, 2.0f);
