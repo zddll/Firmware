@@ -58,7 +58,8 @@ enum NAV_CMD {
 	NAV_CMD_LAND = 21,
 	NAV_CMD_TAKEOFF = 22,
 	NAV_CMD_ROI = 80,
-	NAV_CMD_PATHPLANNING = 81
+	NAV_CMD_PATHPLANNING = 81,
+	NAV_CMD_DO_JUMP = 177
 };
 
 /* compatible to mavlink MAV_ROI */
