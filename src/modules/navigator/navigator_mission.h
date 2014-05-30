@@ -77,7 +77,7 @@ public:
 	void		report_current_offboard_mission_item();
 	void		publish_mission_result();
 
-private:
+public:
 	bool		current_onboard_mission_available();
 	bool		current_offboard_mission_available();
 	bool		next_onboard_mission_available();

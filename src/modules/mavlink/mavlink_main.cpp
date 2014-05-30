@@ -894,6 +894,12 @@ int Mavlink::map_mavlink_mission_item_to_mission_item(const mavlink_mission_item
 		mission_item->path_mode = (enum NAV_PATH_MODE)(mavlink_mission_item->param4);
 		break;
 
+	case MAV_CMD_DO_JUMP:
+			mission_item->jump_to_wp_index = (int)(mavlink_mission_item->param1);
+			mission_item->jump_repeat_count = (int)(mavlink_mission_item->param2);
+			break;
+
+
 	default:
 		mission_item->acceptance_radius = mavlink_mission_item->param2;
 		break;

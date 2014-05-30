@@ -1313,10 +1313,25 @@ Navigator::set_mission_item()
 
 	int ret = ERROR;
 
+	switch (_mission._current_mission_type) {
+		case _mission.MISSION_TYPE_ONBOARD:
+			mavlink_log_info(_mavlink_fd, "ONBOARD");
+			break;
+
+		case _mission.MISSION_TYPE_OFFBOARD:
+			mavlink_log_info(_mavlink_fd, "OFFBOARD");
+			break;
+
+		default:
+			break;
+		}
+
 	while (_mission.current_mission_available()) {
 		bool onboard = false;
 		unsigned index = 0;
+		mavlink_log_critical(_mavlink_fd, "#audio: Getting next WP");
 		ret = _mission.get_current_mission_item(&_mission_item, &onboard, &index);
+		mavlink_log_critical(_mavlink_fd, "#audio: Getting next WP done: %d", ret);
 
 		if (ret == OK) {
 			_mission_item_valid = true;
@@ -1331,6 +1346,17 @@ Navigator::set_mission_item()
 				_mission.move_to_next();
 				continue;
 			}
+
+			if (_mission_item.nav_cmd == NAV_CMD_DO_JUMP){
+                /* jump to  item */
+                _mission.set_current_offboard_mission_index(_mission_item.jump_to_wp_index);
+                mavlink_log_info(_mavlink_fd, "[navigator] do jump");
+                mavlink_log_info(_mavlink_fd, "#audio: Jump detected. Jumping to index: %d", _mission_item.jump_to_wp_index);
+                mavlink_log_info(_mavlink_fd, "#audio: Total mission items: %d", _mission._offboard_mission_item_count);
+                mavlink_log_info(_mavlink_fd, "#audio: Current mission item: %d", _mission._current_offboard_mission_index);
+                continue;
+            }
+
 
 			_mission.report_current_offboard_mission_item();
 
@@ -1450,6 +1476,7 @@ Navigator::set_mission_item()
 		_pos_sp_triplet_updated = true;
 		break;
 	}
+	mavlink_log_info(_mavlink_fd, "set mission item end...");
 }
 
 void

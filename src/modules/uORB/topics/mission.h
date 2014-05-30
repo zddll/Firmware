@@ -110,6 +110,8 @@ struct mission_item_s {
 	enum NAV_PATH_MODE path_mode;	/**< path building mode */
 	bool autocontinue;		/**< true if next waypoint should follow after this one */
 	enum ORIGIN origin;		/**< where the waypoint has been generated		*/
+	int jump_to_wp_index; /** jump to waypoint index	*/
+	int jump_repeat_count; /** jump to waypoint index repeat count	*/
 };
 
 struct mission_s
