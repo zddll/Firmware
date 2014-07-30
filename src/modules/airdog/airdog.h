@@ -28,7 +28,6 @@
 #include <drivers/drv_hrt.h>
 #include <commander/px4_custom_mode.h>
 #include <commander/commander_helper.h>
-#include <navigator/navigator_state.h>
 #include <board_config.h>
 
 #include <mavlink/mavlink_log.h>
@@ -70,8 +69,8 @@ private:
 	};
 
 	void send_set_mode(uint8_t base_mode, enum PX4_CUSTOM_MAIN_MODE custom_main_mode);
-	void send_set_state(enum NAV_STATE state, enum AUTO_MOVE_DIRECTION direction);
-	void send_set_move(enum AUTO_MOVE_DIRECTION direction);
+	// void send_set_state(enum NAV_STATE state, enum AUTO_MOVE_DIRECTION direction);
+	// void send_set_move(enum AUTO_MOVE_DIRECTION direction);
 	void send_save_params();
 	void send_set_parameter_cmd(char *param_name, int int_val, bool should_save);
 	void send_get_parameter_value_cmd(char *param_name);
@@ -83,12 +82,6 @@ private:
 	void handle_takeoff();
 	void display_discharged_mah();
 
-	cParamHandler *pparam_handler;
-	cButtonController *pbutton_ctrl;
-	I2C_CONTROLLER *pi2c_ctrl;
-	I2C_DISPLAY_CONTROLLER *pi2c_disp_ctrl;
-	MENU_CONTROLLER *pmenu_ctrl;
-
 	bool running;
 
 	uint8_t base_mode;
@@ -99,6 +92,12 @@ private:
 	orb_advert_t cmd_log_start;
 
 	int buzzer;
+
+	I2C_CONTROLLER *pi2c_ctrl;
+	I2C_DISPLAY_CONTROLLER *pi2c_disp_ctrl;
+	MENU_CONTROLLER *pmenu_ctrl;
+	cParamHandler *pparam_handler;
+	cButtonController *pbutton_ctrl;
 
 	int mavlink_fd;
 	bool hil;

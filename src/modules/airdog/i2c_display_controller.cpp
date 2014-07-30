@@ -50,7 +50,6 @@ I2C_DISPLAY_CONTROLLER::init()
 int
 I2C_DISPLAY_CONTROLLER::probe()
 {
-    uint8_t response[1] = {0};
     uint8_t requests[1] = {SET_MODE_CMD};
 
     int ret = transfer(&requests[0], sizeof(requests), nullptr, 0);
@@ -93,7 +92,7 @@ I2C_DISPLAY_CONTROLLER::set_symbols_from_float(float number)
 	char str[16];
 	int i, j, len;
 
-	len = sprintf(str, "%.2f", number);
+	len = sprintf(str, "%.2f", (double)number);
 
 	uint8_t symbols[3] = {SYMBOL_EMPTY, SYMBOL_EMPTY,SYMBOL_EMPTY};
 

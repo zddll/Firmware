@@ -75,6 +75,7 @@ MODULES		+= modules/navigator
 MODULES		+= modules/mavlink
 MODULES		+= modules/gpio_led
 MODULES		+= modules/uavcan
+MODULES 	+= modules/airdog
 
 #
 # Estimation modules (EKF/ SO3 / other filters)

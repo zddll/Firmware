@@ -28,6 +28,8 @@ cAirdog::cAirdog() :
 	pi2c_ctrl(nullptr),
 	pi2c_disp_ctrl(nullptr),
 	pmenu_ctrl(nullptr),
+	pparam_handler(nullptr),
+	pbutton_ctrl(nullptr),
 
 	mavlink_fd(0),
 	hil(false),
@@ -166,7 +168,7 @@ void cAirdog::cycle()
 			if (!rtl_triggered_from_battery && airdog_status.sub_mode != PX4_CUSTOM_SUB_MODE_AUTO_RTL && airdog_status.sub_mode != PX4_CUSTOM_SUB_MODE_AUTO_LAND)
 			{
 				rtl_triggered_from_battery = true;
-				send_set_state(NAV_STATE_RTL, MOVE_NONE);
+				// send_set_state(NAV_STATE_RTL, MOVE_NONE);
 				pi2c_ctrl->start_blinking_led(I2C_LED_RED, BLINKING_RATE_FAST);
 			}
 		} else if (airdog_status.battery_remaining > bat_warning_level)
@@ -228,39 +230,39 @@ void cAirdog::send_set_mode(uint8_t base_mode, enum PX4_CUSTOM_MAIN_MODE custom_
 	}
 }
 
-void cAirdog::send_set_state(enum NAV_STATE state, enum AUTO_MOVE_DIRECTION direction)
-{
-	struct vehicle_command_s cmd;
-	memset(&cmd, 0, sizeof(cmd));
+// void cAirdog::send_set_state(enum NAV_STATE state, enum AUTO_MOVE_DIRECTION direction)
+// {
+// 	struct vehicle_command_s cmd;
+// 	memset(&cmd, 0, sizeof(cmd));
 
-	/* fill command */
-	cmd.command = VEHICLE_CMD_NAV_SET_STATE;
-	cmd.param1 = state;
-	cmd.param2 = direction;
-	cmd.confirmation = false;
-	cmd.source_system = vehicle_status.system_id;
-	cmd.source_component = vehicle_status.component_id;
-	// TODO add parameters AD_VEH_SYSID, AD_VEH_COMP to set target id
-	cmd.target_system = 1;
-	cmd.target_component = 50;
+// 	/* fill command */
+// 	cmd.command = VEHICLE_CMD_NAV_SET_STATE;
+// 	cmd.param1 = state;
+// 	cmd.param2 = direction;
+// 	cmd.confirmation = false;
+// 	cmd.source_system = vehicle_status.system_id;
+// 	cmd.source_component = vehicle_status.component_id;
+// 	// TODO add parameters AD_VEH_SYSID, AD_VEH_COMP to set target id
+// 	cmd.target_system = 1;
+// 	cmd.target_component = 50;
 
-	if (cmd_pub < 0) {
-		cmd_pub = orb_advertise(ORB_ID(vehicle_command), &cmd);
-	} else {
-		orb_publish(ORB_ID(vehicle_command), cmd_pub, &cmd);
-	}
-}
+// 	if (cmd_pub < 0) {
+// 		cmd_pub = orb_advertise(ORB_ID(vehicle_command), &cmd);
+// 	} else {
+// 		orb_publish(ORB_ID(vehicle_command), cmd_pub, &cmd);
+// 	}
+// }
 
-void cAirdog::send_set_move(enum AUTO_MOVE_DIRECTION direction)
-{
-	if (airdog_status.sub_mode == PX4_CUSTOM_SUB_MODE_AUTO_LOITER) {
-		send_set_state(NAV_STATE_LOITER, direction);
-	} else if (airdog_status.sub_mode == PX4_CUSTOM_SUB_MODE_AUTO_AFOLLOW) {
-		send_set_state(NAV_STATE_AFOLLOW, direction);
-	} else {
-		send_set_state(NAV_STATE_LOITER, direction);
-	}
-}
+// void cAirdog::send_set_move(enum AUTO_MOVE_DIRECTION direction)
+// {
+// 	if (airdog_status.sub_mode == PX4_CUSTOM_SUB_MODE_AUTO_LOITER) {
+// 		send_set_state(NAV_STATE_LOITER, direction);
+// 	} else if (airdog_status.sub_mode == PX4_CUSTOM_SUB_MODE_AUTO_AFOLLOW) {
+// 		send_set_state(NAV_STATE_AFOLLOW, direction);
+// 	} else {
+// 		send_set_state(NAV_STATE_LOITER, direction);
+// 	}
+// }
 
 void cAirdog::send_record_path_cmd(bool start)
 {
@@ -322,9 +324,9 @@ bool cAirdog::button_clicked_i2c(uint8_t button, bool long_press)
 		case 1:
 			// DOWN button
 			if (long_press) {
-				send_set_state(NAV_STATE_RTL, MOVE_NONE);
+				// send_set_state(NAV_STATE_RTL, MOVE_NONE);
 			} else {
-				send_set_move(MOVE_DOWN);
+				// send_set_move(MOVE_DOWN);
 			}
 			break;
 		case 2:
@@ -354,17 +356,17 @@ bool cAirdog::button_clicked_i2c(uint8_t button, bool long_press)
 				if (long_press)
 				{
 					if (pparam_handler->get(PARAM_NAV_LAND_HOME) > 0) {
-						send_set_state(NAV_STATE_RTL, MOVE_NONE);
+						// send_set_state(NAV_STATE_RTL, MOVE_NONE);
 					} else {
-						send_set_state(NAV_STATE_LAND, MOVE_NONE);
+						// send_set_state(NAV_STATE_LAND, MOVE_NONE);
 					}
 					//send_set_mode(MAV_MODE_FLAG_CUSTOM_MODE_ENABLED, PX4_CUSTOM_MAIN_MODE_AUTO);
 				} else {
 					if (airdog_status.sub_mode == PX4_CUSTOM_SUB_MODE_AUTO_LOITER)
 					{
-						send_set_state(NAV_STATE_AFOLLOW, MOVE_NONE);
+						// send_set_state(NAV_STATE_AFOLLOW, MOVE_NONE);
 					} else {
-						send_set_state(NAV_STATE_LOITER, MOVE_NONE);
+						// send_set_state(NAV_STATE_LOITER, MOVE_NONE);
 					}
 				}
 			}
@@ -374,7 +376,7 @@ bool cAirdog::button_clicked_i2c(uint8_t button, bool long_press)
 			if (long_press) {
 				set_land_mode();
 			} else {
-				send_set_move(MOVE_UP);
+				// send_set_move(MOVE_UP);
 			}
 			break;
 		case 4:
@@ -390,9 +392,9 @@ bool cAirdog::button_clicked_i2c(uint8_t button, bool long_press)
 					log_running = false;
 				}
 			} else if (vehicle_status.system_id == trainer_remote_id) { //TODO get trainer remote id from drone
-				send_set_state(NAV_STATE_COME_HERE, MOVE_TRAINER);
+				// send_set_state(NAV_STATE_COME_HERE, MOVE_TRAINER);
 			} else {
-				send_set_state(NAV_STATE_COME_HERE, MOVE_TARGET);
+				// send_set_state(NAV_STATE_COME_HERE, MOVE_TARGET);
 			}
 			break;
 		case 5:
@@ -403,21 +405,21 @@ bool cAirdog::button_clicked_i2c(uint8_t button, bool long_press)
 				pparam_handler->sendCustomParam("AIRD_PITCH_DOWN", PTYPE_INT, 1, false);
 				pitch_down = true;
 			} else {
-				send_set_move(MOVE_CLOSER);
+				// send_set_move(MOVE_CLOSER);
 			}
 			break;
 		case 6:
 			// CENTER RIGHT
-			send_set_move(MOVE_RIGHT);
+			// send_set_move(MOVE_RIGHT);
 			break;
 		case 7:
 			// CENTER UP
 			if (long_press) {
 				if (vehicle_status.system_id == trainer_remote_id) {
-					send_set_state(NAV_STATE_COME_HERE, MOVE_TARGET);
+					// send_set_state(NAV_STATE_COME_HERE, MOVE_TARGET);
 				}
 			} else {
-				send_set_move(MOVE_FARTHER);
+				// send_set_move(MOVE_FARTHER);
 			}
 			break;
 		case 8:
@@ -425,7 +427,7 @@ bool cAirdog::button_clicked_i2c(uint8_t button, bool long_press)
 			if (long_press) {
 				display_discharged_mah();
 			} else {
-				send_set_move(MOVE_LEFT);
+				// send_set_move(MOVE_LEFT);
 			}
 			break;
 	}
@@ -447,9 +449,9 @@ void cAirdog::display_drone_state() {
 			case PX4_CUSTOM_SUB_MODE_AUTO_LOITER:
 				pi2c_disp_ctrl->set_symbols(SYMBOL_L, SYMBOL_0, SYMBOL_1);
 				break;
-			case PX4_CUSTOM_SUB_MODE_AUTO_AFOLLOW:
-				pi2c_disp_ctrl->set_symbols(SYMBOL_F, SYMBOL_0, SYMBOL_L);
-				break;
+			// case PX4_CUSTOM_SUB_MODE_AUTO_AFOLLOW:
+			// 	pi2c_disp_ctrl->set_symbols(SYMBOL_F, SYMBOL_0, SYMBOL_L);
+			// 	break;
 			case PX4_CUSTOM_SUB_MODE_AUTO_LAND:
 				pi2c_disp_ctrl->set_symbols(SYMBOL_L, SYMBOL_A, SYMBOL_EMPTY);
 				break;
@@ -467,11 +469,11 @@ void cAirdog::handle_takeoff()
 	uint64_t now = hrt_absolute_time();
 	if (takeoff_request_time > 0 && (now - takeoff_request_time) / (1000 * 1000) > 1 && ready_for_takeoff) {
 		rtl_triggered_from_battery = false;
-		send_set_state(NAV_STATE_TAKEOFF, MOVE_NONE);
+		// send_set_state(NAV_STATE_TAKEOFF, MOVE_NONE);
 		takeoff_request_time = now;
 	} else if (takeoff_requested && ready_for_takeoff) {
 		rtl_triggered_from_battery = false;
-		send_set_state(NAV_STATE_TAKEOFF, MOVE_NONE);
+		// send_set_state(NAV_STATE_TAKEOFF, MOVE_NONE);
 		takeoff_requested = false;
 		takeoff_request_time = now;
 	} else if (takeoff_request_time > 0 && airdog_status.sub_mode == PX4_CUSTOM_SUB_MODE_AUTO_TAKEOFF) {
