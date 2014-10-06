@@ -160,7 +160,6 @@ private:
 	float _hil_local_alt0;
 	struct map_projection_reference_s _hil_local_proj_ref;
 	uint64_t _time_offset;
-	int64_t _dt;
 	bool _companion_reboot;
 
 	/* do not allow copying this class */

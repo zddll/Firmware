@@ -120,7 +120,6 @@ MavlinkReceiver::MavlinkReceiver(Mavlink *parent) :
 	_hil_local_alt0(0.0f),
 	_hil_local_proj_ref{},
 	_time_offset(0),
-	_dt(0),
 	_companion_reboot(true)
 {
 	// make sure the FTP server is started
@@ -382,7 +381,7 @@ MavlinkReceiver::handle_message_vision_position_estimate(mavlink_message_t *msg)
 	vision_position.id = msg->compid;
 
 	vision_position.timestamp_boot = hrt_absolute_time(); //useful for latency testing
-	vision_position.timestamp_computer = pos.usec + time_offset; //message from offboard so synchronize stamps XXX: add to all messages from offboard
+	vision_position.timestamp_computer = pos.usec - time_offset; //message from offboard so synchronize stamps XXX: add to all messages from offboard
 	vision_position.x = pos.x;
 	vision_position.y = pos.y;
 	vision_position.z = pos.z;
@@ -525,44 +524,52 @@ MavlinkReceiver::handle_message_request_data_stream(mavlink_message_t *msg)
 void
 MavlinkReceiver::handle_message_system_time(mavlink_message_t *msg)
 {
+	// we don't handle boot times from companion systems.
+	//time_offset is in ms
 	mavlink_system_time_t t;
 	mavlink_msg_system_time_decode(msg, &t);
+
+	timespec onb;
+	timespec ofb;
+	clock_gettime(CLOCK_REALTIME, &onb);
     
-	_dt = (hrt_absolute_time() - t.time_boot_ms) - _time_offset ;
-			
-	if(_dt > 2000) 
+	uint64_t onb_time_boot_ms = hrt_absolute_time();
+	int64_t dt = ((t.time_unix_usec/1000) - onb_time_boot_ms) - _time_offset ;
+
+	bool onb_unix_valid = onb.tv_sec > 1293840000; // before 1/1/2011 -> Onboard UNIX time is invalid
+	bool ofb_unix_valid = (t.time_unix_usec/1000) > 1293840000;	
+
+	if(dt > 2000 || dt < -2000) //2 sec
 	{
 	warnx("Companion computer reboot");
 	_companion_reboot = true;
 	}
 	else
 	{
-	_time_offset = _time_offset + (hrt_absolute_time() - t.time_boot_ms)/2; 
+	_time_offset = _time_offset + ((t.time_unix_usec/1000) - onb_time_boot_ms)/2; 
 	}
 	
+
 	if(_companion_reboot)
 	{
-		timespec onb;
-		clock_gettime(CLOCK_REALTIME, &onb);
-
-		if(onb.tv_sec < 1293840000) // before 1/1/2011 -> Onboard epoch time is invalid
+		if(!onb_unix_valid && ofb_unix_valid) 
 		{
-		timespec ofb;
 		ofb.tv_sec = t.time_unix_usec / 1000;
 		clock_settime(CLOCK_REALTIME, &ofb);
-		t.time_unix_usec = 0; //invalid epoch time so companion should ignore it
+			
+		t.time_unix_usec = 0; //invalid onboard epoch time so companion should ignore it <- for return packet
 		}
-		else
+		else if(onb_unix_valid && !ofb_unix_valid)
 		{
-		t.time_unix_usec = onb.tv_nsec / 1000; // For sending back to companion as it might have invalid epoch time after reboot
+		t.time_unix_usec = onb.tv_nsec/1000; // For sending back to companion
 		}
-
-		_time_offset = hrt_absolute_time() - t.time_boot_ms;
+		warnx("Large clock skew detected. Resyncing clocks");
+		_time_offset = (t.time_unix_usec/1000) - onb_time_boot_ms;
 		_companion_reboot = false;
 	}
 	
 	//Send return timesync packet for companion computer
-	t.time_boot_ms = hrt_absolute_time();
+	t.time_boot_ms = onb_time_boot_ms;
 	_mavlink->send_message(MAVLINK_MSG_ID_SYSTEM_TIME, &t);
 	
 }
