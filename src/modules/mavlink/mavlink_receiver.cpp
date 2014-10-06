@@ -546,7 +546,7 @@ MavlinkReceiver::handle_message_system_time(mavlink_message_t *msg)
 	}
 	else
 	{
-	_time_offset = _time_offset + ((t.time_unix_usec/1000) - onb_time_boot_ms)/2; 
+	_time_offset = (_time_offset + ( (t.time_unix_usec/1000) - onb_time_boot_ms)) )/2; 
 	}
 	
 
@@ -562,6 +562,10 @@ MavlinkReceiver::handle_message_system_time(mavlink_message_t *msg)
 		else if(onb_unix_valid && !ofb_unix_valid)
 		{
 		t.time_unix_usec = onb.tv_nsec/1000; // For sending back to companion
+		}
+		else
+		{
+		t.time_unix_usec = 0; // no valid epoch source
 		}
 		warnx("Large clock skew detected. Resyncing clocks");
 		_time_offset = (t.time_unix_usec/1000) - onb_time_boot_ms;
