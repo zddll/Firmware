@@ -381,7 +381,7 @@ MavlinkReceiver::handle_message_vision_position_estimate(mavlink_message_t *msg)
 	vision_position.id = msg->compid;
 
 	vision_position.timestamp_boot = hrt_absolute_time(); //useful for latency testing
-	vision_position.timestamp_computer = pos.usec - time_offset; //message from offboard so synchronize stamps XXX: add to all messages from offboard
+	vision_position.timestamp_computer = pos.usec/1000 - _time_offset; //synchronize stamps(to milliseconds) XXX: add to all messages from offboard
 	vision_position.x = pos.x;
 	vision_position.y = pos.y;
 	vision_position.z = pos.z;
