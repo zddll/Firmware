@@ -6,7 +6,6 @@
  * modification, are permitted provided that the following conditions
  * are met:
  *
- * 1. Redistributions of source code must retain the above copyright
  *    notice, this list of conditions and the following disclaimer.
  * 2. Redistributions in binary form must reproduce the above copyright
  *    notice, this list of conditions and the following disclaimer in
@@ -207,11 +206,8 @@ const unsigned int loop_interval_alarm = 6500;	// loop interval in microseconds
 			      0,  0,  1.f
 			     };		/**< init: identity matrix */
 
-<<<<<<< HEAD
 	float debugOutput[4] = { 0.0f };
 
-=======
->>>>>>> upstream/indoor
 	int overloadcounter = 19;
 
 	/* Initialize filter */
@@ -280,15 +276,10 @@ const unsigned int loop_interval_alarm = 6500;	// loop interval in microseconds
 	/* keep track of sensor updates */
 	uint64_t sensor_last_timestamp[3] = {0, 0, 0};
 
-<<<<<<< HEAD
 	struct attitude_estimator_ekf_params ekf_params = { 0 };
 
 	struct attitude_estimator_ekf_param_handles ekf_param_handles = { 0 };
-=======
-	struct attitude_estimator_ekf_params ekf_params {};
 
-	struct attitude_estimator_ekf_param_handles ekf_param_handles {};
->>>>>>> upstream/indoor
 
 	/* initialize parameter handles */
 	parameters_init(&ekf_param_handles);
