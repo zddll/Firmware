@@ -41,7 +41,8 @@
 #include <px4.h>
 #include <px4_app.h>
 
-class PublisherExample {
+class PublisherExample
+{
 public:
 	PublisherExample();
 
@@ -52,7 +53,7 @@ public:
 	static px4::AppState appState;
 protected:
 	px4::NodeHandle _n;
-	px4::Publisher<px4::px4_rc_channels> * _rc_channels_pub;
-	px4::Publisher<px4::px4_vehicle_attitude> * _v_att_pub;
-	px4::Publisher<px4::px4_parameter_update> * _parameter_update_pub;
+	px4::Publisher<px4::px4_rc_channels> *_rc_channels_pub;
+	px4::Publisher<px4::px4_vehicle_attitude> *_v_att_pub;
+	px4::Publisher<px4::px4_parameter_update> *_parameter_update_pub;
 };
