@@ -277,8 +277,8 @@ void BlockLocalPositionEstimator::update() {
 	}
 
 
-	if (canEstimateXY) {
-		// update publications if possible 	TODO : fault-checking?
+	if (canEstimateXY) {		// TODO data validation
+		// update publications if possible
 		publishLocalPos(canEstimateZ, canEstimateXY);
 		publishGlobalPos();
 		publishFilteredFlow();
@@ -407,6 +407,14 @@ void BlockLocalPositionEstimator::initFlow() {
 		_flowMeanQual += _sub_flow.get().quality;
 		if (_flowInitCount++ > REQ_INIT_COUNT) {
 			_flowMeanQual /= _flowInitCount;
+			// Retry initialization unless flow quality is good.
+			if(_flowMeanQual < MIN_FLOW_QUALITY)
+			{
+				_flowInitCount = 0;
+				_flowMeanQual = 0;
+				return;
+			}
+
 			mavlink_log_info(_mavlink_fd, "[lpe] flow init: "
 					"quality %d",
 					int(_flowMeanQual));
