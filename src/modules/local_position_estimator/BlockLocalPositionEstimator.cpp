@@ -711,7 +711,7 @@ void BlockLocalPositionEstimator::correctSonar() {
 
 	// measurement
 	math::Vector<1> y;
-	y(0) = (_sub_distance.get().current_distance - sonarAltHome)*
+	y(0) = (_sub_distance.get().current_distance - _sonarAltHome)*
 		cosf(_sub_att.get().roll)*
 		cosf(_sub_att.get().pitch);
 
