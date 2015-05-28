@@ -203,6 +203,8 @@ private:
 	uint64_t _time_last_gps;
 	uint64_t _time_last_lidar;
 	uint64_t _time_last_sonar;
+	uint64_t _time_last_vision;
+	uint64_t _time_last_vicon;
 	float 	 _altHome;
 	int 	 _mavlink_fd;
 	

@@ -6,6 +6,7 @@
 
 static const int MIN_FLOW_QUALITY = 150;
 static const int REQ_INIT_COUNT= 200;
+static const unsigned long SOURCE_TIMEOUT= 200000L;	// 0.2s 
 
 BlockLocalPositionEstimator::BlockLocalPositionEstimator() :
 	// this block has no parent, and has name LPE
@@ -65,6 +66,8 @@ BlockLocalPositionEstimator::BlockLocalPositionEstimator() :
 	_time_last_gps(0),
 	_time_last_lidar(0),
 	_time_last_sonar(0),
+	_time_last_vision(0),	
+	_time_last_vicon(0),
 	_altHome(0),
 
 	// mavlink log
@@ -202,14 +205,25 @@ void BlockLocalPositionEstimator::update() {
 	// update home position projection
 	if (homeUpdated) updateHome();
 
+	// check for timeouts on sources 
+	
+	bool flowTimeout = (hrt_absolute_time() - _time_last_flow > SOURCE_TIMEOUT) && _flowInitialized;
+	if(flowTimeout)		mavlink_log_info(_mavlink_fd, "[lpe] flow lost, attempting recovery ");
+
+	bool visionTimeout = (hrt_absolute_time() - _time_last_vision > SOURCE_TIMEOUT) && _visionInitialized;	
+	if(visionTimeout)	mavlink_log_info(_mavlink_fd, "[lpe] vision timeout ");
+
+	bool viconTimeout = (hrt_absolute_time() -_time_last_vicon > SOURCE_TIMEOUT) && _viconInitialized;
+	if(viconTimeout)	mavlink_log_info(_mavlink_fd, "[lpe] vicon timeout ");
+
 	// determine if we should start estimating
 	bool canEstimateZ = 
 		_baroInitialized;	
 	bool canEstimateXY = 
 		_gpsInitialized ||
- 		_flowInitialized ||
- 		_visionInitialized ||
- 		_viconInitialized;	
+ 		(_flowInitialized && !flowTimeout)||
+ 		(_visionInitialized && !visionTimeout)||
+ 		(_viconInitialized && !viconTimeout);	
 
 	// if we have no lat, lon initialized projection at 0,0
 	if (canEstimateXY && !_map_ref.init_done) {
@@ -226,35 +240,35 @@ void BlockLocalPositionEstimator::update() {
 	if (gpsUpdated) {
 		if (!_gpsInitialized) {
 			initGps();
-		} else if (canEstimateXY) {
+		} else {
 			correctGps();
 		}
 	}
 	if (baroUpdated) {
 		if (!_baroInitialized) {
 			initBaro();
-		} else if (canEstimateZ) {
+		} else {
 			correctBaro();
 		}
 	}
 	if (lidarUpdated) {
 		if (!_lidarInitialized) {
 			initLidar();
-		} else if (canEstimateZ) {
+		} else {
 			correctLidar();
 		}
 	}
 	if (sonarUpdated) {
 		if (!_sonarInitialized) {
 			initSonar();
-		} else if (canEstimateZ) {
+		} else {
 			correctSonar();
 		}
 	}
 	if (flowUpdated) {
 		if (!_flowInitialized) {
 			initFlow();
-		} else if (canEstimateXY) {
+		} else {
 			perf_begin(_loop_perf);// TODO
 			correctFlow();	
 			perf_count(_interval_perf);
@@ -264,20 +278,20 @@ void BlockLocalPositionEstimator::update() {
 	if (visionUpdated) {
 		if (!_visionInitialized) {
 			initVision();
-		} else if (canEstimateXY) {
+		} else {
 			correctVision();
 		}
 	}
 	if (viconUpdated) {
 		if (!_viconInitialized) {
 			initVicon();
-		} else if (canEstimateXY) {
+		} else {
 			correctVicon();
 		}
 	}
 
 
-	if (canEstimateXY) {		// TODO data validation
+	if (canEstimateXY) {
 		// update publications if possible
 		publishLocalPos(canEstimateZ, canEstimateXY);
 		publishGlobalPos();
@@ -1000,6 +1014,8 @@ void BlockLocalPositionEstimator::correctVision() {
 		_x += K*r;
 		_P -= K*C*_P;
 	}
+
+	_time_last_vision = _sub_vision.get().timestamp_boot;
 }
 
 void BlockLocalPositionEstimator::correctVicon() {
@@ -1049,4 +1065,6 @@ void BlockLocalPositionEstimator::correctVicon() {
 		_x += K*r;
 		_P -= K*C*_P;
 	}
+
+	_time_last_vicon = _sub_vicon.get().timestamp;
 }
