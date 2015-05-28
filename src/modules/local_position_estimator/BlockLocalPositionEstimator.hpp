@@ -203,9 +203,9 @@ private:
 	uint64_t _time_last_gps;
 	uint64_t _time_last_lidar;
 	uint64_t _time_last_sonar;
-	float _altHome;
-	int _mavlink_fd;
-
+	float 	 _altHome;
+	int 	 _mavlink_fd;
+	
 	// initialization flags
 	bool _baroInitialized;
 	bool _gpsInitialized;

@@ -301,6 +301,7 @@ void BlockLocalPositionEstimator::updateHome() {
 	_gpsAltHome += delta_alt;
 	_baroAltHome +=  delta_alt;
 	_lidarAltHome +=  delta_alt;
+	_sonarAltHome +=  delta_alt;
 }
 
 void BlockLocalPositionEstimator::initBaro() {
@@ -466,12 +467,12 @@ void BlockLocalPositionEstimator::publishLocalPos(bool z_valid, bool xy_valid) {
 		_pub_lpos.get().z_valid = z_valid;
 		_pub_lpos.get().v_xy_valid = xy_valid;
 		_pub_lpos.get().v_z_valid = z_valid;
-		_pub_lpos.get().x = _x(X_x);  // north
-		_pub_lpos.get().y = _x(X_y);  // east
-		_pub_lpos.get().z = _x(X_z); // down
+		_pub_lpos.get().x = _x(X_x); 	// north
+		_pub_lpos.get().y = _x(X_y);  	// east
+		_pub_lpos.get().z = _x(X_z); 	// down
 		_pub_lpos.get().vx = _x(X_vx);  // north
 		_pub_lpos.get().vy = _x(X_vy);  // east
-		_pub_lpos.get().vz = _x(X_vz); // down
+		_pub_lpos.get().vz = _x(X_vz); 	// down
 		_pub_lpos.get().yaw = _sub_att.get().yaw;
 		_pub_lpos.get().xy_global = _sub_home.get().timestamp != 0; // need home for reference
 		_pub_lpos.get().z_global = _baroInitialized;
@@ -614,14 +615,13 @@ void BlockLocalPositionEstimator::correctFlow() {
 	_time_last_flow = _sub_flow.get().timestamp;
 
 	// calculate velocity over ground
-	// TODO, use z estimate instead of flow raw sonar -> _x(X_z)
 	if (_sub_flow.get().integration_timespan > 0) {
 		flow_speed[0] = _sub_flow.get().pixel_flow_x_integral /
 			(_sub_flow.get().integration_timespan / 1e6f) *
-			_sub_flow.get().ground_distance_m;
+			_x(X_z);
 		flow_speed[1] = _sub_flow.get().pixel_flow_y_integral /
 			(_sub_flow.get().integration_timespan / 1e6f) *
-			_sub_flow.get().ground_distance_m;
+			_x(X_z);
 	} else {
 		flow_speed[0] = 0;
 		flow_speed[1] = 0;
@@ -693,18 +693,25 @@ void BlockLocalPositionEstimator::correctFlow() {
 }
 
 void BlockLocalPositionEstimator::correctSonar() {
+	
+	if(_sub_distance.get().type != distance_sensor_s::MAV_DISTANCE_SENSOR_ULTRASOUND) return;
 
 	// sonar measurement matrix and noise matrix
 	math::Matrix<n_y_sonar, n_x> C;
 	C(Y_sonar_z, X_z) = -1;
 
+	// use parameter covariance unless sensor provides reasonable value
 	math::Matrix<n_y_sonar, n_y_sonar> R;
-	R(Y_sonar_z, Y_sonar_z) =
-		_sonar_z_stddev.get()*_sonar_z_stddev.get();
+	float cov = _sub_distance.get().covariance;
+	if (cov < 1.0e-3f) {
+		R(0,0) = _lidar_z_stddev.get()*_lidar_z_stddev.get();
+	} else {
+		R(0,0) = cov;
+	}
 
 	// measurement
 	math::Vector<1> y;
-	y(0) = _sub_flow.get().ground_distance_m*
+	y(0) = (_sub_distance.get().current_distance - sonarAltHome)*
 		cosf(_sub_att.get().roll)*
 		cosf(_sub_att.get().pitch);
 
@@ -746,6 +753,8 @@ void BlockLocalPositionEstimator::correctSonar() {
 		_x += K*r;
 		_P -= K*C*_P;
 	}
+	_time_last_sonar = _sub_distance.get().timestamp;	
+	
 }
 
 void BlockLocalPositionEstimator::correctBaro() {
@@ -793,6 +802,8 @@ void BlockLocalPositionEstimator::correctBaro() {
 
 void BlockLocalPositionEstimator::correctLidar() {
 
+	if(_sub_distance.get().type != distance_sensor_s::MAV_DISTANCE_SENSOR_LASER) return;	
+
 	float d = _sub_distance.get().current_distance;
 	if (d < _sub_distance.get().min_distance ||
 			d > _sub_distance.get().max_distance) {
@@ -814,7 +825,9 @@ void BlockLocalPositionEstimator::correctLidar() {
 	}
 
 	math::Vector<1> y;
-	y(0) = (d - _lidarAltHome)*cosf(_sub_att.get().roll)*cosf(_sub_att.get().pitch);
+	y(0) = (d - _lidarAltHome)*
+		cosf(_sub_att.get().roll)*
+		cosf(_sub_att.get().pitch);
 
 	// residual
 	math::Matrix<1,1> S_I = ((C*_P*C.transposed()) + R).inversed();
