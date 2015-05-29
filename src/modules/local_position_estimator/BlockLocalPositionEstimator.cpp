@@ -248,11 +248,8 @@ void BlockLocalPositionEstimator::update() {
  		(_visionInitialized && !_visionTimeout && !_visionFault) ||
  		(_viconInitialized && !_viconTimeout && !_viconFault);
 
-	if(!canEstimateXY) {
-		_time_last_xy += dt;	
-	}
-	else {
-		_time_last_xy = 0;	
+	if(canEstimateXY) {
+		_time_last_xy = hrt_absolute_time();	
 	}
 		
 	// if we have no lat, lon initialized projection at 0,0
@@ -320,7 +317,7 @@ void BlockLocalPositionEstimator::update() {
 		}
 	}
 
-	if (!(_time_last_xy > XY_SRC_TIMEOUT)) {
+	if (!(hrt_absolute_time() - _time_last_xy > XY_SRC_TIMEOUT)) {
 		// update all publications if possible
 		publishLocalPos(true, true);
 		publishGlobalPos();
@@ -639,7 +636,7 @@ void BlockLocalPositionEstimator::predict() {
 		B*R*B.transposed() + Q)*getDt();
 }
 
-void BlockLocalPositionEstimator::correctFlow() {
+void BlockLocalPositionEstimator::correctFlow() {	// TODO : use another other metric for glitch detection
 
 	// flow measurement matrix and noise matrix
 	math::Matrix<n_y_flow, n_x> C;
@@ -721,12 +718,6 @@ void BlockLocalPositionEstimator::correctFlow() {
 			warnx("[lpe] flow fault,  beta %5.2f", double(beta));
 		}
 		_flowFault = 1;
-	} if (_sub_flow.get().quality < MIN_FLOW_QUALITY) {
-		if (!_flowFault) {
-			mavlink_log_info(_mavlink_fd, "[lpe] flow fault,  quality %0.2f", double(_sub_flow.get().quality));
-			warnx("[lpe] flow fault,  quality %0.2f", double(_sub_flow.get().quality));
-		}
-		_flowFault = 2;
 	// turn off if fault ok
 	} else if (_flowFault) {
 		_flowFault = 0;
@@ -932,7 +923,7 @@ void BlockLocalPositionEstimator::correctLidar() {
 	_time_last_lidar = _sub_distance.get().timestamp;
 }
 
-void BlockLocalPositionEstimator::correctGps() {		// TODO : use satcount 
+void BlockLocalPositionEstimator::correctGps() {	// TODO : use another other metric for glitch detection
 
 	// gps measurement in local frame
 	double  lat = _sub_gps.get().lat*1.0e-7;
