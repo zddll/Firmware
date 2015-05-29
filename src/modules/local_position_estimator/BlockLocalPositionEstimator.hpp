@@ -253,6 +253,9 @@ private:
 	int _sonarFault;
 	int _visionFault;
 	int _viconFault;
+	
+	bool _visionTimeout;
+	bool _viconTimeout;
 
 	perf_counter_t _loop_perf;
 	perf_counter_t _interval_perf;

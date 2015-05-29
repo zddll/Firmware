@@ -122,6 +122,10 @@ BlockLocalPositionEstimator::BlockLocalPositionEstimator() :
 	_visionFault(0),
 	_viconFault(0),
 
+	//timeouts
+	_visionTimeout(true),
+	_viconTimeout(true),
+
 	// loop performance
 	_loop_perf(),
 	_interval_perf(),
@@ -211,17 +215,38 @@ void BlockLocalPositionEstimator::update() {
 	if (homeUpdated) updateHome();
 
 	// check for timeouts on external sources
-	bool visionTimeout = (hrt_absolute_time() - _time_last_vision > VISION_TIMEOUT) && _visionInitialized;	
-	bool viconTimeout = (hrt_absolute_time() -_time_last_vicon > VICON_TIMEOUT) && _viconInitialized;
+	if((hrt_absolute_time() - _time_last_vision > VISION_TIMEOUT) && _visionInitialized)
+	{
+		if(!_visionTimeout)
+		{
+			_visionTimeout = true;
+			mavlink_log_info(_mavlink_fd, "[lpe] vision timeout ");
+			warnx("[lpe] vision timeout ");
+		}
+	} else {
+		_visionTimeout = false;
+	}
+
+	if((hrt_absolute_time() -_time_last_vicon > VICON_TIMEOUT) && _viconInitialized)
+	{
+		if(!_viconTimeout)
+		{
+			_viconTimeout = true;
+			mavlink_log_info(_mavlink_fd, "[lpe] vicon timeout ");
+			warnx("[lpe] vicon timeout ");
+		}
+	} else {
+		_viconTimeout = false;
+	}
 
 	// determine if we should start estimating
 	bool canEstimateZ = 
 		_baroInitialized;	
 	bool canEstimateXY = 
-		_gpsInitialized ||
+		(_gpsInitialized && !_gpsFault) ||
  		(_flowInitialized && !_flowFault) ||
- 		(_visionInitialized && !visionTimeout && !_visionFault) ||
- 		(_viconInitialized && !viconTimeout && !_viconFault);
+ 		(_visionInitialized && !_visionTimeout && !_visionFault) ||
+ 		(_viconInitialized && !_viconTimeout && !_viconFault);
 
 	if(!canEstimateXY) {
 		_time_last_xy += dt;	
@@ -907,7 +932,7 @@ void BlockLocalPositionEstimator::correctLidar() {
 	_time_last_lidar = _sub_distance.get().timestamp;
 }
 
-void BlockLocalPositionEstimator::correctGps() {
+void BlockLocalPositionEstimator::correctGps() {		// TODO : use satcount 
 
 	// gps measurement in local frame
 	double  lat = _sub_gps.get().lat*1.0e-7;
