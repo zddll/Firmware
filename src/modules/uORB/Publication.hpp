@@ -44,18 +44,6 @@
 #include <containers/List.hpp>
 #include <systemlib/err.h>
 
-/* Oddly, ERROR is not defined for C++ */
-#ifdef ERROR
-# undef ERROR
-#endif
-static const int ERROR = -1;
-
-/* Oddly, OK is not defined for C++ */
-#ifdef OK
-# undef OK
-#endif
-static const int OK = 0;
-
 namespace uORB
 {
 
@@ -76,43 +64,19 @@ public:
 	 * 	don't publish as multi
 	 */
 	PublicationBase(const struct orb_metadata *meta,
-			int priority=-1) :
-		_meta(meta),
-		_priority(priority),
-		_instance(),
-		_handle(nullptr) {
-	}
+			int priority=-1);
 
 	/**
 	 * Update the struct
 	 * @param data The uORB message struct we are updating.
 	 */
-	void update(void * data) {
-		if (_handle != nullptr) {
-			int ret = orb_publish(getMeta(), getHandle(), data);
-			if (ret != OK) warnx("publish fail");
-		} else {
-			orb_advert_t handle;
-			if (_priority > 0) {
-				handle = orb_advertise_multi(
-					getMeta(), data,
-					&_instance, _priority);
-			} else {
-				handle = orb_advertise(getMeta(), data);
-			}
-			if (int64_t(handle) != ERROR) {
-				setHandle(handle);
-			} else {
-				warnx("advert fail");
-			}
-		}
-	}
+	void update(void * data);
 
 	/**
 	 * Deconstructor
 	 */
-	virtual ~PublicationBase() {
-	}
+	virtual ~PublicationBase();
+
 // accessors
 	const struct orb_metadata *getMeta() { return _meta; }
 	orb_advert_t getHandle() { return _handle; }
@@ -155,10 +119,7 @@ public:
 	 */
 	PublicationNode(const struct orb_metadata *meta,
 			int priority=-1,
-			List<PublicationNode *> * list=nullptr) :
-			PublicationBase(meta, priority) {
-		if (list != nullptr) list->add(this);
-	}
+			List<PublicationNode *> * list=nullptr);
 
 	/**
 	 * This function is the callback for list traversal

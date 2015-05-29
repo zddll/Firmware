@@ -52,8 +52,60 @@
 #include "topics/rc_channels.h"
 #include "topics/filtered_bottom_flow.h"
 
+/* Oddly, ERROR is not defined for C++ */
+#ifdef ERROR
+# undef ERROR
+#endif
+static const int ERROR = -1;
+
+/* Oddly, OK is not defined for C++ */
+#ifdef OK
+# undef OK
+#endif
+static const int OK = 0;
+
 namespace uORB {
 
+PublicationBase::PublicationBase(const struct orb_metadata *meta,
+		int priority) :
+	_meta(meta),
+	_priority(priority),
+	_instance(),
+	_handle(nullptr) {
+}
+
+void PublicationBase::update(void * data) {
+	if (_handle != nullptr) {
+		int ret = orb_publish(getMeta(), getHandle(), data);
+		if (ret != OK) warnx("publish fail");
+	} else {
+		orb_advert_t handle;
+		if (_priority > 0) {
+			handle = orb_advertise_multi(
+				getMeta(), data,
+				&_instance, _priority);
+		} else {
+			handle = orb_advertise(getMeta(), data);
+		}
+		if (int64_t(handle) != ERROR) {
+			setHandle(handle);
+		} else {
+			warnx("advert fail");
+		}
+	}
+}
+
+PublicationBase::~PublicationBase() {
+}
+
+PublicationNode::PublicationNode(const struct orb_metadata *meta,
+		int priority,
+		List<PublicationNode *> * list) :
+		PublicationBase(meta, priority) {
+	if (list != nullptr) list->add(this);
+}
+
+// explicit template instantiation
 template class __EXPORT Publication<vehicle_attitude_s>;
 template class __EXPORT Publication<vehicle_local_position_s>;
 template class __EXPORT Publication<vehicle_global_position_s>;

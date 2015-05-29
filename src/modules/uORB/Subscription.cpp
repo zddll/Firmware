@@ -62,8 +62,54 @@
 #include "topics/vehicle_vicon_position.h"
 #include "topics/vision_position_estimate.h"
 
+/* Oddly, ERROR is not defined for C++ */
+#ifdef ERROR
+# undef ERROR
+#endif
+static const int ERROR = -1;
+
+/* Oddly, OK is not defined for C++ */
+#ifdef OK
+# undef OK
+#endif
+static const int OK = 0;
+
 namespace uORB
 {
+
+SubscriptionBase::SubscriptionBase(const struct orb_metadata *meta,
+		unsigned interval, unsigned instance) :
+		_meta(meta),
+		_instance(instance),
+		_handle() {
+	if (_instance > 0) {
+		_handle =  orb_subscribe_multi(
+			getMeta(), instance);
+	} else {
+		_handle =  orb_subscribe(getMeta());
+	}
+	if (_handle < 0) warnx("sub failed");
+	orb_set_interval(getHandle(), interval);
+}
+
+bool SubscriptionBase::updated() {
+	bool isUpdated = false;
+	int ret = orb_check(_handle, &isUpdated);
+	if (ret != OK) warnx("orb check failed");
+	return isUpdated;
+}
+
+void SubscriptionBase::update(void * data) {
+	if (updated()) {
+		int ret = orb_copy(_meta, _handle, data);
+		if (ret != OK) warnx("orb copy failed");
+	}
+}
+
+SubscriptionBase::~SubscriptionBase() {
+	int ret = orb_unsubscribe(_handle);
+	if (ret != OK) warnx("orb unsubscribe failed");
+}
 
 template <class T>
 Subscription<T>::Subscription(const struct orb_metadata *meta,

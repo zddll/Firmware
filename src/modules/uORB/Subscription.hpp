@@ -44,18 +44,6 @@
 #include <containers/List.hpp>
 #include <systemlib/err.h>
 
-/* Oddly, ERROR is not defined for C++ */
-#ifdef ERROR
-# undef ERROR
-#endif
-static const int ERROR = -1;
-
-/* Oddly, OK is not defined for C++ */
-#ifdef OK
-# undef OK
-#endif
-static const int OK = 0;
-
 namespace uORB
 {
 
@@ -78,48 +66,24 @@ public:
 	 * @param instance The instance for multi sub.
 	 */
 	SubscriptionBase(const struct orb_metadata *meta,
-			unsigned interval=0, unsigned instance=0) :
-			_meta(meta),
-			_instance(instance),
-			_handle() {
-		if (_instance > 0) {
-			_handle =  orb_subscribe_multi(
-				getMeta(), instance);
-		} else {
-			_handle =  orb_subscribe(getMeta());
-		}
-		if (_handle < 0) warnx("sub failed");
-		orb_set_interval(getHandle(), interval);
-	}
+			unsigned interval=0, unsigned instance=0);
 
 	/**
 	 * Check if there is a new update.
 	 * */
-	bool updated() {
-		bool isUpdated = false;
-		int ret = orb_check(_handle, &isUpdated);
-		if (ret != OK) warnx("orb check failed");
-		return isUpdated;
-	}
+	bool updated();
 
 	/**
 	 * Update the struct
 	 * @param data The uORB message struct we are updating.
 	 */
-	void update(void * data) {
-		if (updated()) {
-			int ret = orb_copy(_meta, _handle, data);
-			if (ret != OK) warnx("orb copy failed");
-		}
-	}
+	void update(void * data);
 
 	/**
 	 * Deconstructor
 	 */
-	virtual ~SubscriptionBase() {
-		int ret = orb_unsubscribe(_handle);
-		if (ret != OK) warnx("orb unsubscribe failed");
-	}
+	virtual ~SubscriptionBase();
+
 // accessors
 	const struct orb_metadata *getMeta() { return _meta; }
 	int getHandle() { return _handle; }
