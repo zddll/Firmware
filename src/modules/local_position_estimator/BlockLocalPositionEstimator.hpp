@@ -130,12 +130,13 @@ private:
 	void initBaro();
 	void initGps();
 	void initLidar();
+	void initSonar();
 	void initFlow();
 	void initVision();
 	void initVicon();
 
 	// publications
-	void publishLocalPos();
+	void publishLocalPos(bool z_valid, bool xy_valid);
 	void publishGlobalPos();
 	void publishFilteredFlow();
 	
@@ -197,17 +198,22 @@ private:
 	// misc
 	struct pollfd _polls[3];
 	uint64_t _timeStamp;
+	uint64_t _time_last_xy;
 	uint64_t _time_last_flow;
 	uint64_t _time_last_baro;
 	uint64_t _time_last_gps;
 	uint64_t _time_last_lidar;
-	float _altHome;
-	int _mavlink_fd;
-
+	uint64_t _time_last_sonar;
+	uint64_t _time_last_vision;
+	uint64_t _time_last_vicon;
+	float 	 _altHome;
+	int 	 _mavlink_fd;
+	
 	// initialization flags
 	bool _baroInitialized;
 	bool _gpsInitialized;
 	bool _lidarInitialized;
+	bool _sonarInitialized;
 	bool _flowInitialized;
 	bool _visionInitialized;
 	bool _viconInitialized;
@@ -216,14 +222,16 @@ private:
 	int _baroInitCount;
 	int _gpsInitCount;
 	int _lidarInitCount;
+	int _sonarInitCount;
 	int _flowInitCount;
 	int _visionInitCount;
 	int _viconInitCount;
 
 	// reference altitudes
 	float _baroAltHome;
-	float _gpsAltHome;
+	float _gpsAltHome;	
 	float _lidarAltHome;
+	float _sonarAltHome;
 	float _flowAltHome;
 	math::Vector<3> _visionHome;
 	math::Vector<3> _viconHome;
@@ -231,6 +239,7 @@ private:
 	// flow integration
 	float _flowX;
 	float _flowY;
+	float _flowMeanQual;
 
 	// referene lat/lon
 	double _gpsLatHome;
@@ -244,13 +253,16 @@ private:
 	int _sonarFault;
 	int _visionFault;
 	int _viconFault;
+	
+	bool _visionTimeout;
+	bool _viconTimeout;
 
 	perf_counter_t _loop_perf;
 	perf_counter_t _interval_perf;
 	perf_counter_t _err_perf;
 
 	// state space
-	math::Vector<n_x>  _x; // state vecotr
+	math::Vector<n_x>  _x; // state vector
 	math::Vector<n_u>  _u; // input vector
 	math::Matrix<n_x, n_x>  _P; // state covariance matrix
 };

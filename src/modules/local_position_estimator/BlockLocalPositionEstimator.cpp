@@ -4,8 +4,13 @@
 #include <nuttx/math.h>
 #include <systemlib/err.h>
 
-static const int MIN_FLOW_QUALITY = 200;
-static const int REQ_INIT_COUNT= 200;
+static const int 		MIN_FLOW_QUALITY = 100;
+static const int 		REQ_INIT_COUNT = 100;
+
+static const uint32_t 		VISION_TIMEOUT = 500000;
+static const uint32_t 		VICON_TIMEOUT = 200000;	 
+
+static const uint32_t 		XY_SRC_TIMEOUT = 2000000;
 
 BlockLocalPositionEstimator::BlockLocalPositionEstimator() :
 	// this block has no parent, and has name LPE
@@ -60,10 +65,14 @@ BlockLocalPositionEstimator::BlockLocalPositionEstimator() :
 	// misc
 	_polls(),
 	_timeStamp(hrt_absolute_time()),
+	_time_last_xy(0),
 	_time_last_flow(0),
 	_time_last_baro(0),
 	_time_last_gps(0),
 	_time_last_lidar(0),
+	_time_last_sonar(0),
+	_time_last_vision(0),	
+	_time_last_vicon(0),
 	_altHome(0),
 
 	// mavlink log
@@ -73,6 +82,7 @@ BlockLocalPositionEstimator::BlockLocalPositionEstimator() :
 	_baroInitialized(false),
 	_gpsInitialized(false),
 	_lidarInitialized(false),
+	_sonarInitialized(false),
 	_flowInitialized(false),
 	_visionInitialized(false),
 	_viconInitialized(false),
@@ -81,6 +91,7 @@ BlockLocalPositionEstimator::BlockLocalPositionEstimator() :
 	_baroInitCount(0),
 	_gpsInitCount(0),
 	_lidarInitCount(0),
+	_sonarInitCount(0),
 	_flowInitCount(0),
 	_visionInitCount(0),
 	_viconInitCount(0),
@@ -89,13 +100,14 @@ BlockLocalPositionEstimator::BlockLocalPositionEstimator() :
 	_baroAltHome(0),
 	_gpsAltHome(0),
 	_lidarAltHome(0),
-	_flowAltHome(0),
+	_sonarAltHome(0),
 	_visionHome(),
 	_viconHome(),
 
 	// flow integration
 	_flowX(0),
 	_flowY(0),
+	_flowMeanQual(0),
 
 	// reference lat/lon
 	_gpsLatHome(0),
@@ -109,6 +121,10 @@ BlockLocalPositionEstimator::BlockLocalPositionEstimator() :
 	_sonarFault(0),
 	_visionFault(0),
 	_viconFault(0),
+
+	//timeouts
+	_visionTimeout(true),
+	_viconTimeout(true),
 
 	// loop performance
 	_loop_perf(),
@@ -134,10 +150,10 @@ BlockLocalPositionEstimator::BlockLocalPositionEstimator() :
 
 	// perf counters
 	_loop_perf = perf_alloc(PC_ELAPSED,
-			"flow_position_estimator_runtime");
+			"local_position_estimator_runtime");
 	_interval_perf = perf_alloc(PC_INTERVAL,
-			"flow_position_estimator_interval");
-	_err_perf = perf_alloc(PC_COUNT, "flow_position_estimator_err");
+			"local_position_estimator_interval");
+	_err_perf = perf_alloc(PC_COUNT, "local_position_estimator_err");
 
 	// map
 	_map_ref.init_done = false;
@@ -175,9 +191,13 @@ void BlockLocalPositionEstimator::update() {
 	bool paramsUpdated = _sub_param_update.updated();
 	bool baroUpdated = _sub_sensor.updated();
 	bool lidarUpdated = false;
+	bool sonarUpdated = false;
 	if (_sub_distance.updated()) {
 		if (_sub_distance.get().type == distance_sensor_s::MAV_DISTANCE_SENSOR_LASER) {
 			lidarUpdated = true;		
+		}
+		if (_sub_distance.get().type == distance_sensor_s::MAV_DISTANCE_SENSOR_ULTRASOUND) {
+			sonarUpdated = true;		
 		}
 	}
 	bool gpsUpdated = _sub_gps.updated();
@@ -194,23 +214,52 @@ void BlockLocalPositionEstimator::update() {
 	// update home position projection
 	if (homeUpdated) updateHome();
 
+	// check for timeouts on external sources
+	if((hrt_absolute_time() - _time_last_vision > VISION_TIMEOUT) && _visionInitialized)
+	{
+		if(!_visionTimeout)
+		{
+			_visionTimeout = true;
+			mavlink_log_info(_mavlink_fd, "[lpe] vision timeout ");
+			warnx("[lpe] vision timeout ");
+		}
+	} else {
+		_visionTimeout = false;
+	}
+
+	if((hrt_absolute_time() -_time_last_vicon > VICON_TIMEOUT) && _viconInitialized)
+	{
+		if(!_viconTimeout)
+		{
+			_viconTimeout = true;
+			mavlink_log_info(_mavlink_fd, "[lpe] vicon timeout ");
+			warnx("[lpe] vicon timeout ");
+		}
+	} else {
+		_viconTimeout = false;
+	}
+
 	// determine if we should start estimating
-	bool readyToEstimate =
-		_baroInitialized && 
-		(_gpsInitialized ||
- 		_flowInitialized ||
- 		_visionInitialized ||
- 		_viconInitialized);
+	bool canEstimateZ = 
+		_baroInitialized;	
+	bool canEstimateXY = 
+		(_gpsInitialized && !_gpsFault) ||
+ 		(_flowInitialized && !_flowFault) ||
+ 		(_visionInitialized && !_visionTimeout && !_visionFault) ||
+ 		(_viconInitialized && !_viconTimeout && !_viconFault);
 
-
+	if(canEstimateXY) {
+		_time_last_xy = hrt_absolute_time();	
+	}
+		
 	// if we have no lat, lon initialized projection at 0,0
-	if (readyToEstimate && !_map_ref.init_done) {
+	if (canEstimateXY && !_map_ref.init_done) {
 		map_projection_init(&_map_ref, 0, 0);
 	}
 
 	// do prediction if we have a reasonable set of
 	// initialized sensors
-	if (readyToEstimate) {
+	if (canEstimateZ) {
 		predict();
 	}
 
@@ -218,31 +267,37 @@ void BlockLocalPositionEstimator::update() {
 	if (gpsUpdated) {
 		if (!_gpsInitialized) {
 			initGps();
-		} else if (readyToEstimate) {
+		} else {
 			correctGps();
 		}
 	}
 	if (baroUpdated) {
 		if (!_baroInitialized) {
 			initBaro();
-		} else if (readyToEstimate) {
+		} else {
 			correctBaro();
 		}
 	}
 	if (lidarUpdated) {
 		if (!_lidarInitialized) {
 			initLidar();
-		} else if (readyToEstimate) {
+		} else {
 			correctLidar();
+		}
+	}
+	if (sonarUpdated) {
+		if (!_sonarInitialized) {
+			initSonar();
+		} else {
+			correctSonar();
 		}
 	}
 	if (flowUpdated) {
 		if (!_flowInitialized) {
 			initFlow();
-		} else if (readyToEstimate) {
-			perf_begin(_loop_perf);
-			correctFlow();
-			correctSonar();
+		} else {
+			perf_begin(_loop_perf);// TODO
+			correctFlow();	
 			perf_count(_interval_perf);
 			perf_end(_loop_perf);
 		}
@@ -250,24 +305,27 @@ void BlockLocalPositionEstimator::update() {
 	if (visionUpdated) {
 		if (!_visionInitialized) {
 			initVision();
-		} else if (readyToEstimate) {
+		} else {
 			correctVision();
 		}
 	}
 	if (viconUpdated) {
 		if (!_viconInitialized) {
 			initVicon();
-		} else if (readyToEstimate) {
+		} else {
 			correctVicon();
 		}
 	}
 
-
-	if (readyToEstimate) {
-		// update publications if possible
-		publishLocalPos();
+	if (!(hrt_absolute_time() - _time_last_xy > XY_SRC_TIMEOUT)) {
+		// update all publications if possible
+		publishLocalPos(true, true);
 		publishGlobalPos();
 		publishFilteredFlow();
+	}
+	else {
+		// publish only Z estimate
+		publishLocalPos(true, false);
 	}
 }
 
@@ -283,6 +341,7 @@ void BlockLocalPositionEstimator::updateHome() {
 	_gpsAltHome += delta_alt;
 	_baroAltHome +=  delta_alt;
 	_lidarAltHome +=  delta_alt;
+	_sonarAltHome +=  delta_alt;
 }
 
 void BlockLocalPositionEstimator::initBaro() {
@@ -329,7 +388,10 @@ void BlockLocalPositionEstimator::initGps() {
 }
 
 void BlockLocalPositionEstimator::initLidar() {
-	// collect gps data
+	
+	if(_sub_distance.get().type != distance_sensor_s::MAV_DISTANCE_SENSOR_LASER) return;
+	
+	// collect lidar data
 	bool valid = false;
 	float d = _sub_distance.get().current_distance;
 	if (d < _sub_distance.get().max_distance &&
@@ -351,20 +413,55 @@ void BlockLocalPositionEstimator::initLidar() {
 	}
 }
 
-void BlockLocalPositionEstimator::initFlow() {
-	// collect flow data
-	if (!_flowInitialized) {
-		// don't initialize with poor quality flow
-		if (_sub_flow.get().quality <  MIN_FLOW_QUALITY) return;
+void BlockLocalPositionEstimator::initSonar() {
+
+	if(_sub_distance.get().type != distance_sensor_s::MAV_DISTANCE_SENSOR_ULTRASOUND) return;
+
+	// collect sonar data
+	bool valid = false;
+	float d = _sub_distance.get().current_distance;
+	if (d < _sub_distance.get().max_distance &&
+		d > _sub_distance.get().min_distance) {
+		valid = true;
+	}
+	if (!_sonarInitialized && valid) {
 		// increament sums for mean
-		_flowAltHome += _sub_flow.get().ground_distance_m;
-		if (_flowInitCount++ > REQ_INIT_COUNT) {
-			_flowAltHome /= _flowInitCount;
-			mavlink_log_info(_mavlink_fd, "[lpe] flow init: "
+		_sonarAltHome += _sub_distance.get().current_distance;
+		if (_sonarInitCount++ > REQ_INIT_COUNT) {
+			_sonarAltHome /= _sonarInitCount;
+			mavlink_log_info(_mavlink_fd, "[lpe] sonar init: "
 					"alt %d cm",
-					int(100*_flowAltHome));
-			warnx("[lpe] flow init: alt %d cm",
-					int(100*_flowAltHome));
+					int(100*_sonarAltHome));
+			warnx("[lpe] sonar init: alt %d cm",
+					int(100*_sonarAltHome));
+			_sonarInitialized = true;
+		}
+	}
+}
+
+void BlockLocalPositionEstimator::initFlow() {
+	
+	// collect pixel flow data 
+	if (!_flowInitialized) {
+		// increament sums for mean
+		_flowMeanQual += _sub_flow.get().quality;
+
+		if (_flowInitCount++ > REQ_INIT_COUNT) {
+			_flowMeanQual /= _flowInitCount;
+			if(_flowMeanQual < MIN_FLOW_QUALITY)	
+			{
+				// retry initialisation till we have better flow data
+				warnx("[lpe] flow quality bad, retrying init:%d",
+					int(_flowMeanQual));
+				_flowMeanQual = 0;
+				_flowInitCount = 0;
+				return;
+			}
+			mavlink_log_info(_mavlink_fd, "[lpe] flow init: "
+					"quality %d",
+					int(_flowMeanQual));
+			warnx("[lpe] flow init: quality %d",
+					int(_flowMeanQual));
 			_flowInitialized = true;
 		}
 	}
@@ -410,22 +507,22 @@ void BlockLocalPositionEstimator::initVicon() {
 	}
 }
 
-void BlockLocalPositionEstimator::publishLocalPos() {
+void BlockLocalPositionEstimator::publishLocalPos(bool z_valid, bool xy_valid) {
 	// publish local position
 	if (isfinite(_x(X_x)) && isfinite(_x(X_y)) && isfinite(_x(X_z)) &&
 		isfinite(_x(X_vx)) && isfinite(_x(X_vy))
 		&& isfinite(_x(X_vz))) {
 		_pub_lpos.get().timestamp = _timeStamp;
-		_pub_lpos.get().xy_valid = true;
-		_pub_lpos.get().z_valid = true;
-		_pub_lpos.get().v_xy_valid = true;
-		_pub_lpos.get().v_z_valid = true;
-		_pub_lpos.get().x = _x(X_x);  // north
-		_pub_lpos.get().y = _x(X_y);  // east
-		_pub_lpos.get().z = _x(X_z); // down
+		_pub_lpos.get().xy_valid = xy_valid;
+		_pub_lpos.get().z_valid = z_valid;
+		_pub_lpos.get().v_xy_valid = xy_valid;
+		_pub_lpos.get().v_z_valid = z_valid;
+		_pub_lpos.get().x = _x(X_x); 	// north
+		_pub_lpos.get().y = _x(X_y);  	// east
+		_pub_lpos.get().z = _x(X_z); 	// down
 		_pub_lpos.get().vx = _x(X_vx);  // north
 		_pub_lpos.get().vy = _x(X_vy);  // east
-		_pub_lpos.get().vz = _x(X_vz); // down
+		_pub_lpos.get().vz = _x(X_vz); 	// down
 		_pub_lpos.get().yaw = _sub_att.get().yaw;
 		_pub_lpos.get().xy_global = _sub_home.get().timestamp != 0; // need home for reference
 		_pub_lpos.get().z_global = _baroInitialized;
@@ -539,10 +636,7 @@ void BlockLocalPositionEstimator::predict() {
 		B*R*B.transposed() + Q)*getDt();
 }
 
-void BlockLocalPositionEstimator::correctFlow() {
-
-	// only correct if high flow quality
-	if (_sub_flow.get().quality <  MIN_FLOW_QUALITY) return;
+void BlockLocalPositionEstimator::correctFlow() {	// TODO : use another other metric for glitch detection
 
 	// flow measurement matrix and noise matrix
 	math::Matrix<n_y_flow, n_x> C;
@@ -566,16 +660,15 @@ void BlockLocalPositionEstimator::correctFlow() {
 	}
 	float dt = (_sub_flow.get().timestamp - _time_last_flow) * 1.0e-6f ;
 	_time_last_flow = _sub_flow.get().timestamp;
-
+	
 	// calculate velocity over ground
-	// TODO, use z estimate instead of flow raw sonar
 	if (_sub_flow.get().integration_timespan > 0) {
 		flow_speed[0] = _sub_flow.get().pixel_flow_x_integral /
 			(_sub_flow.get().integration_timespan / 1e6f) *
-			_sub_flow.get().ground_distance_m;
+			_x(X_z);
 		flow_speed[1] = _sub_flow.get().pixel_flow_y_integral /
 			(_sub_flow.get().integration_timespan / 1e6f) *
-			_sub_flow.get().ground_distance_m;
+			_x(X_z);
 	} else {
 		flow_speed[0] = 0;
 		flow_speed[1] = 0;
@@ -642,23 +735,39 @@ void BlockLocalPositionEstimator::correctFlow() {
 	// if a fault occurred
 	} else {
 		_flowX = _x(X_x);
-		_flowY = _x(X_y);
+		_flowY = _x(X_y);	
 	}
+
 }
 
 void BlockLocalPositionEstimator::correctSonar() {
+	
+	if(_sub_distance.get().type != distance_sensor_s::MAV_DISTANCE_SENSOR_ULTRASOUND) return;
+	
+	float d = _sub_distance.get().current_distance;
+	if (d < _sub_distance.get().min_distance ||
+			d > _sub_distance.get().max_distance) {
+		mavlink_log_info(_mavlink_fd, "[lpe] sonar out of range");
+		warnx("[lpe] sonar out of range");
+		return;
+	}
 
 	// sonar measurement matrix and noise matrix
 	math::Matrix<n_y_sonar, n_x> C;
 	C(Y_sonar_z, X_z) = -1;
 
+	// use parameter covariance unless sensor provides reasonable value
 	math::Matrix<n_y_sonar, n_y_sonar> R;
-	R(Y_sonar_z, Y_sonar_z) =
-		_sonar_z_stddev.get()*_sonar_z_stddev.get();
+	float cov = _sub_distance.get().covariance;
+	if (cov < 1.0e-3f) {
+		R(0,0) = _sonar_z_stddev.get()*_sonar_z_stddev.get();
+	} else {
+		R(0,0) = cov;
+	}
 
 	// measurement
 	math::Vector<1> y;
-	y(0) = _sub_flow.get().ground_distance_m*
+	y(0) = (d - _sonarAltHome)*
 		cosf(_sub_att.get().roll)*
 		cosf(_sub_att.get().pitch);
 
@@ -673,7 +782,7 @@ void BlockLocalPositionEstimator::correctSonar() {
 	float beta = sqrtf(r*(S_I*r));
 
 	// zero is an error code for the sonar
-	if (y(0) < 0.29f) {
+	if (d < 0.001f) {
 		if (!_sonarFault) {
 			mavlink_log_info(_mavlink_fd, "[lpe] sonar error");
 			warnx("[lpe] sonar error");
@@ -700,6 +809,8 @@ void BlockLocalPositionEstimator::correctSonar() {
 		_x += K*r;
 		_P -= K*C*_P;
 	}
+	_time_last_sonar = _sub_distance.get().timestamp;	
+	
 }
 
 void BlockLocalPositionEstimator::correctBaro() {
@@ -747,6 +858,8 @@ void BlockLocalPositionEstimator::correctBaro() {
 
 void BlockLocalPositionEstimator::correctLidar() {
 
+	if(_sub_distance.get().type != distance_sensor_s::MAV_DISTANCE_SENSOR_LASER) return;	
+
 	float d = _sub_distance.get().current_distance;
 	if (d < _sub_distance.get().min_distance ||
 			d > _sub_distance.get().max_distance) {
@@ -768,7 +881,9 @@ void BlockLocalPositionEstimator::correctLidar() {
 	}
 
 	math::Vector<1> y;
-	y(0) = (d - _lidarAltHome)*cosf(_sub_att.get().roll)*cosf(_sub_att.get().pitch);
+	y(0) = (d - _lidarAltHome)*
+		cosf(_sub_att.get().roll)*
+		cosf(_sub_att.get().pitch);
 
 	// residual
 	math::Matrix<1,1> S_I = ((C*_P*C.transposed()) + R).inversed();
@@ -808,7 +923,7 @@ void BlockLocalPositionEstimator::correctLidar() {
 	_time_last_lidar = _sub_distance.get().timestamp;
 }
 
-void BlockLocalPositionEstimator::correctGps() {
+void BlockLocalPositionEstimator::correctGps() {	// TODO : use another other metric for glitch detection
 
 	// gps measurement in local frame
 	double  lat = _sub_gps.get().lat*1.0e-7;
@@ -933,6 +1048,8 @@ void BlockLocalPositionEstimator::correctVision() {
 		_x += K*r;
 		_P -= K*C*_P;
 	}
+
+	_time_last_vision = _sub_vision.get().timestamp_boot;
 }
 
 void BlockLocalPositionEstimator::correctVicon() {
@@ -982,4 +1099,6 @@ void BlockLocalPositionEstimator::correctVicon() {
 		_x += K*r;
 		_P -= K*C*_P;
 	}
+
+	_time_last_vicon = _sub_vicon.get().timestamp;
 }
