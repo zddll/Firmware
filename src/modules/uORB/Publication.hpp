@@ -69,7 +69,7 @@ public:
 		_meta(meta),
 		_priority(priority),
 		_instance(),
-		_handle(-1) {
+		_handle(nullptr) {
 	}
 
 	/**
@@ -77,7 +77,7 @@ public:
 	 * @param data The uORB message struct we are updating.
 	 */
 	void update(void * data) {
-		if (_handle > 0) {
+		if (_handle != nullptr) {
 			orb_publish(getMeta(), getHandle(), data);
 		} else {
 			if (_priority > 0) {
@@ -95,11 +95,10 @@ public:
 	 * Deconstructor
 	 */
 	virtual ~PublicationBase() {
-		orb_unsubscribe(getHandle());
 	}
 // accessors
 	const struct orb_metadata *getMeta() { return _meta; }
-	int getHandle() { return _handle; }
+	orb_advert_t getHandle() { return _handle; }
 protected:
 	// disallow copy
 	PublicationBase(const PublicationBase & other);

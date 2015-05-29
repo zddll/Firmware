@@ -131,6 +131,7 @@ Mavlink::Mavlink() :
 	_mavlink_fd(-1),
 	_task_running(false),
 	_hil_enabled(false),
+	_generate_rc(false),
 	_use_hil_gps(false),
 	_forward_externalsp(false),
 	_is_usb_uart(false),
@@ -577,7 +578,7 @@ int Mavlink::get_component_id()
 }
 
 #ifndef __PX4_POSIX
-int Mavlink::mavlink_open_uart(int baud, const char *uart_name, struct termios *uart_config_original, bool *is_usb)
+int Mavlink::mavlink_open_uart(int baud, const char *uart_name, struct termios *uart_config_original)
 {
 	/* process baud rate */
 	int speed;
@@ -642,7 +643,7 @@ int Mavlink::mavlink_open_uart(int baud, const char *uart_name, struct termios *
 	/* Try to set baud rate */
 	struct termios uart_config;
 	int termios_state;
-	*is_usb = false;
+	_is_usb_uart = false;
 
 	/* Back up the original uart configuration to restore it after exit */
 	if ((termios_state = tcgetattr(_uart_fd, uart_config_original)) < 0) {
@@ -667,6 +668,8 @@ int Mavlink::mavlink_open_uart(int baud, const char *uart_name, struct termios *
 			return -1;
 		}
 
+	} else {
+		_is_usb_uart = true;
 	}
 
 	if ((termios_state = tcsetattr(_uart_fd, TCSANOW, &uart_config)) < 0) {
@@ -777,7 +780,7 @@ Mavlink::get_free_tx_buf()
 		if (_last_write_try_time != 0 &&
 		    hrt_elapsed_time(&_last_write_success_time) > 500 * 1000UL &&
 		    _last_write_success_time != _last_write_try_time) {
-			warnx("DISABLING HARDWARE FLOW CONTROL");
+			warnx("Disabling hardware flow control");
 			enable_flow_control(false);
 		}
 	}
@@ -913,7 +916,7 @@ Mavlink::handle_message(const mavlink_message_t *msg)
 
 	/* handle packet with parameter component */
 	_parameters_manager->handle_message(msg);
-	
+
 	/* handle packet with ftp component */
 	_mavlink_ftp->handle_message(msg);
 
@@ -1393,7 +1396,7 @@ Mavlink::task_main(int argc, char *argv[])
 	struct termios uart_config_original;
 
 	/* default values for arguments */
-	_uart_fd = mavlink_open_uart(_baudrate, _device_name, &uart_config_original, &_is_usb_uart);
+	_uart_fd = mavlink_open_uart(_baudrate, _device_name, &uart_config_original);
 
 	if (_uart_fd < 0) {
 		warn("could not open %s", _device_name);
@@ -1468,7 +1471,7 @@ Mavlink::task_main(int argc, char *argv[])
 	_mavlink_ftp = (MavlinkFTP *) MavlinkFTP::new_instance(this);
 	_mavlink_ftp->set_interval(interval_from_rate(80.0f));
 	LL_APPEND(_streams, _mavlink_ftp);
-	
+
 	/* MISSION_STREAM stream, actually sends all MISSION_XXX messages at some rate depending on
 	 * remote requests rate. Rate specified here controls how much bandwidth we will reserve for
 	 * mission messages. */
@@ -1545,6 +1548,8 @@ Mavlink::task_main(int argc, char *argv[])
 		if (status_sub->update(&status_time, &status)) {
 			/* switch HIL mode if required */
 			set_hil_enabled(status.hil_state == vehicle_status_s::HIL_STATE_ON);
+
+			set_manual_input_mode_generation(status.rc_input_mode == vehicle_status_s::RC_IN_MODE_GENERATED);
 		}
 
 		/* check for requested subscriptions */

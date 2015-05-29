@@ -130,9 +130,6 @@ ORB_DEFINE(vehicle_control_mode, struct vehicle_control_mode_s);
 #include "topics/vehicle_local_position_setpoint.h"
 ORB_DEFINE(vehicle_local_position_setpoint, struct vehicle_local_position_setpoint_s);
 
-#include "topics/vehicle_bodyframe_speed_setpoint.h"
-ORB_DEFINE(vehicle_bodyframe_speed_setpoint, struct vehicle_bodyframe_speed_setpoint_s);
-
 #include "topics/position_setpoint_triplet.h"
 ORB_DEFINE(position_setpoint_triplet, struct position_setpoint_triplet_s);
 
@@ -150,7 +147,10 @@ ORB_DEFINE(mission_result, struct mission_result_s);
 ORB_DEFINE(geofence_result, struct geofence_result_s);
 
 #include "topics/fence.h"
-ORB_DEFINE(fence, unsigned);
+ORB_DEFINE(fence, struct fence_s);
+
+#include "topics/fence_vertex.h"
+ORB_DEFINE(fence_vertex, struct fence_vertex_s);
 
 #include "topics/vehicle_attitude_setpoint.h"
 ORB_DEFINE(vehicle_attitude_setpoint, struct vehicle_attitude_setpoint_s);
@@ -160,9 +160,6 @@ ORB_DEFINE(fw_virtual_attitude_setpoint, struct vehicle_attitude_setpoint_s);
 #include "topics/manual_control_setpoint.h"
 ORB_DEFINE(manual_control_setpoint, struct manual_control_setpoint_s);
 
-#include "topics/vehicle_control_debug.h"
-ORB_DEFINE(vehicle_control_debug, struct vehicle_control_debug_s);
-
 #include "topics/offboard_control_mode.h"
 ORB_DEFINE(offboard_control_mode, struct offboard_control_mode_s);
 
@@ -171,9 +168,6 @@ ORB_DEFINE(optical_flow, struct optical_flow_s);
 
 #include "topics/filtered_bottom_flow.h"
 ORB_DEFINE(filtered_bottom_flow, struct filtered_bottom_flow_s);
-
-#include "topics/omnidirectional_flow.h"
-ORB_DEFINE(omnidirectional_flow, struct omnidirectional_flow_s);
 
 #include "topics/airspeed.h"
 ORB_DEFINE(airspeed, struct airspeed_s);
@@ -230,14 +224,17 @@ ORB_DEFINE(navigation_capabilities, struct navigation_capabilities_s);
 #include "topics/esc_status.h"
 ORB_DEFINE(esc_status, struct esc_status_s);
 
+#include "topics/esc_report.h"
+ORB_DEFINE(esc_report, struct esc_report_s);
+
 #include "topics/encoders.h"
 ORB_DEFINE(encoders, struct encoders_s);
 
 #include "topics/estimator_status.h"
-ORB_DEFINE(estimator_status, struct estimator_status_report);
+ORB_DEFINE(estimator_status, struct estimator_status_s);
 
 #include "topics/vision_position_estimate.h"
-ORB_DEFINE(vision_position_estimate, struct vision_position_estimate);
+ORB_DEFINE(vision_position_estimate, struct vision_position_estimate_s);
 
 #include "topics/vehicle_force_setpoint.h"
 ORB_DEFINE(vehicle_force_setpoint, struct vehicle_force_setpoint_s);

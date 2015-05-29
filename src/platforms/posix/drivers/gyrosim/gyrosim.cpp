@@ -221,7 +221,7 @@ private:
 	struct hrt_call		_call;
 	unsigned		_call_interval;
 
-	RingBuffer		*_accel_reports;
+	ringbuffer::RingBuffer	*_accel_reports;
 
 	struct accel_scale	_accel_scale;
 	float			_accel_range_scale;
@@ -230,7 +230,7 @@ private:
 	int			_accel_orb_class_instance;
 	int			_accel_class_instance;
 
-	RingBuffer		*_gyro_reports;
+	ringbuffer::RingBuffer	*_gyro_reports;
 
 	struct gyro_scale	_gyro_scale;
 	float			_gyro_range_scale;
@@ -472,7 +472,7 @@ GYROSIM::GYROSIM(const char *path_accel, const char *path_gyro, enum Rotation ro
 	_accel_scale{},
 	_accel_range_scale(0.0f),
 	_accel_range_m_s2(0.0f),
-	_accel_topic(-1),
+	_accel_topic(nullptr),
 	_accel_orb_class_instance(-1),
 	_accel_class_instance(-1),
 	_gyro_reports(nullptr),
@@ -571,13 +571,13 @@ GYROSIM::init()
 	}
 
 	/* allocate basic report buffers */
-	_accel_reports = new RingBuffer(2, sizeof(accel_report));
+	_accel_reports = new ringbuffer::RingBuffer(2, sizeof(accel_report));
 	if (_accel_reports == nullptr) {
 		PX4_WARN("_accel_reports creation failed");
 		goto out;
 	}
 
-	_gyro_reports = new RingBuffer(2, sizeof(gyro_report));
+	_gyro_reports = new ringbuffer::RingBuffer(2, sizeof(gyro_report));
 	if (_gyro_reports == nullptr) {
 		PX4_WARN("_gyro_reports creation failed");
 		goto out;
@@ -624,7 +624,7 @@ GYROSIM::init()
 	_accel_topic = orb_advertise_multi(ORB_ID(sensor_accel), &arp,
 		&_accel_orb_class_instance, ORB_PRIO_HIGH);
 
-	if (_accel_topic < 0) {
+	if (_accel_topic == nullptr) {
 		PX4_WARN("ADVERT FAIL");
 	}
 
@@ -636,7 +636,7 @@ GYROSIM::init()
 	_gyro->_gyro_topic = orb_advertise_multi(ORB_ID(sensor_gyro), &grp,
 		&_gyro->_gyro_orb_class_instance, ORB_PRIO_HIGH);
 
-	if (_gyro->_gyro_topic < 0) {
+	if (_gyro->_gyro_topic == nullptr) {
 		PX4_WARN("ADVERT FAIL");
 	}
 
@@ -1547,7 +1547,7 @@ GYROSIM::print_registers()
 GYROSIM_gyro::GYROSIM_gyro(GYROSIM *parent, const char *path) :
 	VDev("GYROSIM_gyro", path),
 	_parent(parent),
-	_gyro_topic(-1),
+	_gyro_topic(nullptr),
 	_gyro_orb_class_instance(-1),
 	_gyro_class_instance(-1)
 {
