@@ -198,6 +198,7 @@ private:
 	// misc
 	struct pollfd _polls[3];
 	uint64_t _timeStamp;
+	uint64_t _time_last_xy;
 	uint64_t _time_last_flow;
 	uint64_t _time_last_baro;
 	uint64_t _time_last_gps;
@@ -258,7 +259,7 @@ private:
 	perf_counter_t _err_perf;
 
 	// state space
-	math::Vector<n_x>  _x; // state vecotr
+	math::Vector<n_x>  _x; // state vector
 	math::Vector<n_u>  _u; // input vector
 	math::Matrix<n_x, n_x>  _P; // state covariance matrix
 };

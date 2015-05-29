@@ -4,9 +4,13 @@
 #include <nuttx/math.h>
 #include <systemlib/err.h>
 
-static const int MIN_FLOW_QUALITY = 150;
-static const int REQ_INIT_COUNT= 200;
-static const unsigned long SOURCE_TIMEOUT= 200000L;	// 0.2s 
+static const int 		MIN_FLOW_QUALITY = 100;
+static const int 		REQ_INIT_COUNT = 100;
+
+static const uint32_t 		VISION_TIMEOUT = 500000;
+static const uint32_t 		VICON_TIMEOUT = 200000;	 
+
+static const uint32_t 		XY_SRC_TIMEOUT = 2000000;
 
 BlockLocalPositionEstimator::BlockLocalPositionEstimator() :
 	// this block has no parent, and has name LPE
@@ -61,6 +65,7 @@ BlockLocalPositionEstimator::BlockLocalPositionEstimator() :
 	// misc
 	_polls(),
 	_timeStamp(hrt_absolute_time()),
+	_time_last_xy(0),
 	_time_last_flow(0),
 	_time_last_baro(0),
 	_time_last_gps(0),
@@ -205,26 +210,26 @@ void BlockLocalPositionEstimator::update() {
 	// update home position projection
 	if (homeUpdated) updateHome();
 
-	// check for timeouts on sources 
-	
-	bool flowTimeout = (hrt_absolute_time() - _time_last_flow > SOURCE_TIMEOUT) && _flowInitialized;
-	if(flowTimeout)		mavlink_log_info(_mavlink_fd, "[lpe] flow lost, attempting recovery ");
-
-	bool visionTimeout = (hrt_absolute_time() - _time_last_vision > SOURCE_TIMEOUT) && _visionInitialized;	
-	if(visionTimeout)	mavlink_log_info(_mavlink_fd, "[lpe] vision timeout ");
-
-	bool viconTimeout = (hrt_absolute_time() -_time_last_vicon > SOURCE_TIMEOUT) && _viconInitialized;
-	if(viconTimeout)	mavlink_log_info(_mavlink_fd, "[lpe] vicon timeout ");
+	// check for timeouts on external sources
+	bool visionTimeout = (hrt_absolute_time() - _time_last_vision > VISION_TIMEOUT) && _visionInitialized;	
+	bool viconTimeout = (hrt_absolute_time() -_time_last_vicon > VICON_TIMEOUT) && _viconInitialized;
 
 	// determine if we should start estimating
 	bool canEstimateZ = 
 		_baroInitialized;	
 	bool canEstimateXY = 
 		_gpsInitialized ||
- 		(_flowInitialized && !flowTimeout)||
- 		(_visionInitialized && !visionTimeout)||
- 		(_viconInitialized && !viconTimeout);	
+ 		(_flowInitialized && !_flowFault) ||
+ 		(_visionInitialized && !visionTimeout && !_visionFault) ||
+ 		(_viconInitialized && !viconTimeout && !_viconFault);
 
+	if(!canEstimateXY) {
+		_time_last_xy += dt;	
+	}
+	else {
+		_time_last_xy = 0;	
+	}
+		
 	// if we have no lat, lon initialized projection at 0,0
 	if (canEstimateXY && !_map_ref.init_done) {
 		map_projection_init(&_map_ref, 0, 0);
@@ -290,16 +295,15 @@ void BlockLocalPositionEstimator::update() {
 		}
 	}
 
-
-	if (canEstimateXY) {
-		// update publications if possible
-		publishLocalPos(canEstimateZ, canEstimateXY);
+	if (!(_time_last_xy > XY_SRC_TIMEOUT)) {
+		// update all publications if possible
+		publishLocalPos(true, true);
 		publishGlobalPos();
 		publishFilteredFlow();
 	}
-	else if (canEstimateZ) {
+	else {
 		// publish only Z estimate
-		publishLocalPos(canEstimateZ, canEstimateXY);
+		publishLocalPos(true, false);
 	}
 }
 
@@ -419,16 +423,18 @@ void BlockLocalPositionEstimator::initFlow() {
 	if (!_flowInitialized) {
 		// increament sums for mean
 		_flowMeanQual += _sub_flow.get().quality;
+
 		if (_flowInitCount++ > REQ_INIT_COUNT) {
 			_flowMeanQual /= _flowInitCount;
-			// Retry initialization unless flow quality is good.
-			if(_flowMeanQual < MIN_FLOW_QUALITY)
+			if(_flowMeanQual < MIN_FLOW_QUALITY)	
 			{
-				_flowInitCount = 0;
+				// retry initialisation till we have better flow data
+				warnx("[lpe] flow quality bad, retrying init:%d",
+					int(_flowMeanQual));
 				_flowMeanQual = 0;
+				_flowInitCount = 0;
 				return;
 			}
-
 			mavlink_log_info(_mavlink_fd, "[lpe] flow init: "
 					"quality %d",
 					int(_flowMeanQual));
@@ -610,9 +616,6 @@ void BlockLocalPositionEstimator::predict() {
 
 void BlockLocalPositionEstimator::correctFlow() {
 
-	// only correct if high flow quality
-	if (_sub_flow.get().quality <  MIN_FLOW_QUALITY) return;
-
 	// flow measurement matrix and noise matrix
 	math::Matrix<n_y_flow, n_x> C;
 	C(Y_flow_x, X_x) = 1;
@@ -635,7 +638,7 @@ void BlockLocalPositionEstimator::correctFlow() {
 	}
 	float dt = (_sub_flow.get().timestamp - _time_last_flow) * 1.0e-6f ;
 	_time_last_flow = _sub_flow.get().timestamp;
-
+	
 	// calculate velocity over ground
 	if (_sub_flow.get().integration_timespan > 0) {
 		flow_speed[0] = _sub_flow.get().pixel_flow_x_integral /
@@ -693,6 +696,12 @@ void BlockLocalPositionEstimator::correctFlow() {
 			warnx("[lpe] flow fault,  beta %5.2f", double(beta));
 		}
 		_flowFault = 1;
+	} if (_sub_flow.get().quality < MIN_FLOW_QUALITY) {
+		if (!_flowFault) {
+			mavlink_log_info(_mavlink_fd, "[lpe] flow fault,  quality %0.2f", double(_sub_flow.get().quality));
+			warnx("[lpe] flow fault,  quality %0.2f", double(_sub_flow.get().quality));
+		}
+		_flowFault = 2;
 	// turn off if fault ok
 	} else if (_flowFault) {
 		_flowFault = 0;
@@ -710,13 +719,22 @@ void BlockLocalPositionEstimator::correctFlow() {
 	// if a fault occurred
 	} else {
 		_flowX = _x(X_x);
-		_flowY = _x(X_y);
+		_flowY = _x(X_y);	
 	}
+
 }
 
 void BlockLocalPositionEstimator::correctSonar() {
 	
 	if(_sub_distance.get().type != distance_sensor_s::MAV_DISTANCE_SENSOR_ULTRASOUND) return;
+	
+	float d = _sub_distance.get().current_distance;
+	if (d < _sub_distance.get().min_distance ||
+			d > _sub_distance.get().max_distance) {
+		mavlink_log_info(_mavlink_fd, "[lpe] sonar out of range");
+		warnx("[lpe] sonar out of range");
+		return;
+	}
 
 	// sonar measurement matrix and noise matrix
 	math::Matrix<n_y_sonar, n_x> C;
@@ -726,14 +744,14 @@ void BlockLocalPositionEstimator::correctSonar() {
 	math::Matrix<n_y_sonar, n_y_sonar> R;
 	float cov = _sub_distance.get().covariance;
 	if (cov < 1.0e-3f) {
-		R(0,0) = _lidar_z_stddev.get()*_lidar_z_stddev.get();
+		R(0,0) = _sonar_z_stddev.get()*_sonar_z_stddev.get();
 	} else {
 		R(0,0) = cov;
 	}
 
 	// measurement
 	math::Vector<1> y;
-	y(0) = (_sub_distance.get().current_distance - _sonarAltHome)*
+	y(0) = (d - _sonarAltHome)*
 		cosf(_sub_att.get().roll)*
 		cosf(_sub_att.get().pitch);
 
@@ -748,7 +766,7 @@ void BlockLocalPositionEstimator::correctSonar() {
 	float beta = sqrtf(r*(S_I*r));
 
 	// zero is an error code for the sonar
-	if (y(0) < 0.29f) {
+	if (d < 0.001f) {
 		if (!_sonarFault) {
 			mavlink_log_info(_mavlink_fd, "[lpe] sonar error");
 			warnx("[lpe] sonar error");
