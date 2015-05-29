@@ -155,7 +155,7 @@ private:
 	uORB::Subscription<manual_control_setpoint_s> _sub_manual;
 	uORB::Subscription<home_position_s> _sub_home;
 	uORB::Subscription<vehicle_gps_position_s> _sub_gps;
-	uORB::Subscription<vision_position_estimate> _sub_vision;
+	uORB::Subscription<vision_position_estimate_s> _sub_vision;
 	uORB::Subscription<vehicle_vicon_position_s> _sub_vicon;
 
 	// publications

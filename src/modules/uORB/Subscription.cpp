@@ -110,6 +110,6 @@ template class __EXPORT Subscription<home_position_s>;
 template class __EXPORT Subscription<optical_flow_s>;
 template class __EXPORT Subscription<distance_sensor_s>;
 template class __EXPORT Subscription<vehicle_vicon_position_s>;
-template class __EXPORT Subscription<vision_position_estimate>;
+template class __EXPORT Subscription<vision_position_estimate_s>;
 
 } // namespace uORB

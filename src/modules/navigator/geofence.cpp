@@ -61,12 +61,6 @@
 #define GEOFENCE_RANGE_WARNING_LIMIT 3000000
 
 
-/* Oddly, ERROR is not defined for C++ */
-#ifdef ERROR
-# undef ERROR
-#endif
-static const int ERROR = -1;
-
 Geofence::Geofence() :
 	SuperBlock(NULL, "GF"),
 	_fence_pub(nullptr),

@@ -44,6 +44,11 @@
 #include <containers/List.hpp>
 #include <systemlib/err.h>
 
+/* Oddly, ERROR is not defined for C++ */
+#ifdef ERROR
+# undef ERROR
+#endif
+static const int ERROR = -1;
 
 namespace uORB
 {
@@ -78,16 +83,22 @@ public:
 	 */
 	void update(void * data) {
 		if (_handle != nullptr) {
-			orb_publish(getMeta(), getHandle(), data);
+			int ret = orb_publish(getMeta(), getHandle(), data);
+			if (ret != OK) warnx("publish fail");
 		} else {
+			orb_advert_t handle;
 			if (_priority > 0) {
-				setHandle(orb_advertise_multi(
+				handle = orb_advertise_multi(
 					getMeta(), data,
-					&_instance, _priority));
+					&_instance, _priority);
 			} else {
-				setHandle(orb_advertise(getMeta(), data));
+				handle = orb_advertise(getMeta(), data);
 			}
-			if (_handle < 0) warnx("advert fail");
+			if (int64_t(handle) != ERROR) {
+				setHandle(handle);
+			} else {
+				warnx("advert fail");
+			}
 		}
 	}
 
