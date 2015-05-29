@@ -44,6 +44,18 @@
 #include <containers/List.hpp>
 #include <systemlib/err.h>
 
+/* Oddly, ERROR is not defined for C++ */
+#ifdef ERROR
+# undef ERROR
+#endif
+static const int ERROR = -1;
+
+/* Oddly, OK is not defined for C++ */
+#ifdef OK
+# undef OK
+#endif
+static const int OK = 0;
+
 namespace uORB
 {
 
