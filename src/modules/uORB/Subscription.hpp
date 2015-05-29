@@ -85,7 +85,8 @@ public:
 	 * */
 	bool updated() {
 		bool isUpdated = false;
-		orb_check(_handle, &isUpdated);
+		int ret = orb_check(_handle, &isUpdated);
+		if (ret != OK) warnx("orb check failed");
 		return isUpdated;
 	}
 
@@ -95,7 +96,8 @@ public:
 	 */
 	void update(void * data) {
 		if (updated()) {
-			orb_copy(_meta, _handle, data);
+			int ret = orb_copy(_meta, _handle, data);
+			if (ret != OK) warnx("orb copy failed");
 		}
 	}
 
@@ -103,7 +105,8 @@ public:
 	 * Deconstructor
 	 */
 	virtual ~SubscriptionBase() {
-		orb_unsubscribe(_handle);
+		int ret = orb_unsubscribe(_handle);
+		if (ret != OK) warnx("orb unsubscribe failed");
 	}
 // accessors
 	const struct orb_metadata *getMeta() { return _meta; }
