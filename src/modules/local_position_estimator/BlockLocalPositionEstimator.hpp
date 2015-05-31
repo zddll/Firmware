@@ -137,7 +137,7 @@ private:
 
 	// publications
 	void publishLocalPos(bool z_valid, bool xy_valid);
-	void publishGlobalPos();
+	void publishGlobalPos(bool dead_reckoning);
 	void publishFilteredFlow();
 	
 	// attributes
