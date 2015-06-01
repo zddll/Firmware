@@ -33,7 +33,7 @@
 
 /**
  * @file local_position_estimator.cpp
- * @author James Goppert
+ * @author James Goppert <james.goppert@gmail.com>
  * @author Mohammed Kabir
  * @author Nuno Marques
  *
