@@ -1060,7 +1060,7 @@ void BlockLocalPositionEstimator::correctVision() {
 		y(5) = _sub_vision_vel.get().z - _visionBaseVel(2);
 	}
 	else {	// Else, derivate velocity from position
-		static hrt_abstime last_vision_time = 0;
+		static hrt_abstime last_vision_time = 0.0f;
 		static float vx = 0.0f;
 		static float vy = 0.0f;
 		static float vz = 0.0f;
@@ -1080,6 +1080,12 @@ void BlockLocalPositionEstimator::correctVision() {
 			y(3) = vx - y(0);
 			y(4) = vy - y(1);
 			y(5) = vz - y(2);
+		}
+		else {
+			// zero motion
+			y(3) = 0.0f - y(0);
+			y(4) = 0.0f - y(1);
+			y(5) = 0.0f - y(2);
 		}
 	}
 
