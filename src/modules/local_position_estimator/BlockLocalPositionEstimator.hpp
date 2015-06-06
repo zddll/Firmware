@@ -191,8 +191,10 @@ private:
 	BlockParamFloat  _gps_vxy_stddev;
 	BlockParamFloat  _gps_vz_stddev;
 
-	BlockParamFloat  _vision_p_stddev;
-	BlockParamFloat  _vision_v_stddev;
+	BlockParamFloat  _vision_xy_stddev;
+	BlockParamFloat  _vision_z_stddev;
+	BlockParamFloat  _vision_vxy_stddev;
+	BlockParamFloat  _vision_vz_stddev;
 	BlockParamInt	 _no_vision;
 
 	BlockParamFloat  _vicon_p_stddev;

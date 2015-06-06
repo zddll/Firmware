@@ -111,31 +111,51 @@ PARAM_DEFINE_FLOAT(LPE_GPS_VXY, 1.0f);
  * GPS z velocity standard deviation.
  *
  * @group Local Position Estimator
- * @unit m
+ * @unit m/s
  * @min 0.01
  * @max 2
  */
 PARAM_DEFINE_FLOAT(LPE_GPS_VZ, 1.0f);
 
 /**
- * Vision position standard deviation.
+ * Vision xy standard deviation.
  *
  * @group Local Position Estimator
  * @unit m
  * @min 0.01
  * @max 1
  */
-PARAM_DEFINE_FLOAT(LPE_VIS_P, 1.0f);
+PARAM_DEFINE_FLOAT(LPE_VIS_XY, 0.5f);
 
 /**
- * Vision velocity standard deviation.
+ * Vision z standard deviation.
+ *
+ * @group Local Position Estimator
+ * @unit m
+ * @min 0.01
+ * @max 2
+ */
+PARAM_DEFINE_FLOAT(LPE_VIS_Z, 0.5f);
+
+/**
+ * Vision xy velocity standard deviation.
  *
  * @group Local Position Estimator
  * @unit m/s
  * @min 0.01
- * @max 1
+ * @max 2
  */
-PARAM_DEFINE_FLOAT(LPE_VIS_V, 1.0f);
+PARAM_DEFINE_FLOAT(LPE_VIS_VXY, 1.0f);
+
+/**
+ * Vision z velocity standard deviation.
+ *
+ * @group Local Position Estimator
+ * @unit m/s
+ * @min 0.01
+ * @max 2
+ */
+PARAM_DEFINE_FLOAT(LPE_VIS_VZ, 1.0f);
 
 /**
  * Disable vision input.

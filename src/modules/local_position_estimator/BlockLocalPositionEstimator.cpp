@@ -58,8 +58,10 @@ BlockLocalPositionEstimator::BlockLocalPositionEstimator() :
 	_gps_z_stddev(this, "GPS_Z"),
 	_gps_vxy_stddev(this, "GPS_VXY"),
 	_gps_vz_stddev(this, "GPS_VZ"),
-	_vision_p_stddev(this, "VIS_P"),
-	_vision_v_stddev(this, "VIS_V"),
+	_vision_xy_stddev(this, "VIS_XY"),
+	_vision_z_stddev(this, "VIS_Z"),
+	_vision_vxy_stddev(this, "VIS_VXY"),
+	_vision_vz_stddev(this, "VIS_VZ"),
 	_no_vision(this, "NO_VIS"),
 	_vicon_p_stddev(this, "VIC_P"),
 	_pn_p_stddev(this, "PN_P"),
@@ -1139,11 +1141,12 @@ void BlockLocalPositionEstimator::correctVision() {
 
 	// measurement covariance
 	math::Matrix<n_y_vision, n_y_vision> R;
-	float vision_p_var = _vision_p_stddev.get()* \
-		_vision_p_stddev.get();
-	R(Y_vision_x, Y_vision_x) = vision_p_var;
-	R(Y_vision_y, Y_vision_y) = vision_p_var;
-	R(Y_vision_z, Y_vision_z) = vision_p_var;
+	R(0,0) = _vision_xy_stddev.get()*_vision_xy_stddev.get();
+	R(1,1) = _vision_xy_stddev.get()*_vision_xy_stddev.get();
+	R(2,2) = _vision_z_stddev.get()*_vision_z_stddev.get();
+	R(3,3) = _vision_vxy_stddev.get()*_vision_vxy_stddev.get();
+	R(4,4) = _vision_vxy_stddev.get()*_vision_vxy_stddev.get();
+	R(5,5) = _vision_vz_stddev.get()*_vision_vz_stddev.get();
 
 	// residual
 	math::Matrix<6,6> S_I =
