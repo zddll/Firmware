@@ -4,18 +4,18 @@
 
 
 /**
- * Enable local position estimatr
+ * Enable local position estimator
  *
  * @group Local Position Estimator
  */
-PARAM_DEFINE_INT32(LPE_ENABLED, 0);
+PARAM_DEFINE_INT32(LPE_ENABLED, 1);
 
 /**
  * Enable accelerometer integration for prediction.
  *
  * @group Local Position Estimator
  */
-PARAM_DEFINE_FLOAT(LPE_INTEGRATE, 1);
+PARAM_DEFINE_INT32(LPE_INTEGRATE, 1);
 
 /**
  * Optical flow xy standard deviation
