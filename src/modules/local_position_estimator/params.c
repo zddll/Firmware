@@ -158,7 +158,7 @@ PARAM_DEFINE_FLOAT(LPE_VIS_VXY, 1.0f);
 PARAM_DEFINE_FLOAT(LPE_VIS_VZ, 1.0f);
 
 /**
- * Disable vision input.
+ * Circuit breaker to disable vision input.
  *
  * Set to the appropriate key (328754) to disable vision input.
  *
@@ -182,9 +182,9 @@ PARAM_DEFINE_FLOAT(LPE_VIC_P, 0.05f);
  * Position propagation process noise.
  *
  * @group Local Position Estimator
- * @unit m/s^2
+ * @unit m
  * @min 0.01
- * @max 0.5
+ * @max 1
  */
 PARAM_DEFINE_FLOAT(LPE_PN_P, 1.0f);
 
