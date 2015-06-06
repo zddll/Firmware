@@ -278,6 +278,43 @@ void BlockLocalPositionEstimator::update() {
 		map_projection_init(&_map_ref, 0, 0);
 	}
 
+	// reinitialize x if necessary
+	bool reinit_x = false;
+	for (int i=0; i< n_x; i++) {
+		// should we do a reinit
+		// of sensors here?
+		// don't want it to take too long
+		if (!isfinite(_x(i))) {
+			reinit_x = true;
+			break;
+		}
+	}
+	if (reinit_x) {
+		for (int i=0; i< n_x; i++) {
+			_x(i) = 0;
+		}
+		mavlink_log_info(_mavlink_fd, "[lpe] reinit x");
+		warnx("[lpe] reinit x");
+	}
+
+	// reinitialize P if necessary
+	bool reinit_P = false;
+	for (int i=0; i< n_x; i++) {
+		for (int j=0; j< n_x; j++) {
+			if (!isfinite(_P(i,j))) {
+				reinit_P = true;
+				break;
+			}
+		}
+		if (reinit_P) break;
+	}
+	if (reinit_P) {
+		mavlink_log_info(_mavlink_fd, "[lpe] reinit P");
+		warnx("[lpe] reinit P");
+		_P.identity();
+		_P *= 0.1;
+	}
+
 	// do prediction if we have a reasonable set of
 	// initialized sensors
 	if (canEstimateZ) {
@@ -354,6 +391,7 @@ void BlockLocalPositionEstimator::update() {
 		// publish only Z estimate
 		publishLocalPos(true, false);
 	}
+
 }
 
 void BlockLocalPositionEstimator::updateHome() {
@@ -682,6 +720,7 @@ void BlockLocalPositionEstimator::predict() {
 	_x += (A*_x + B*_u)*getDt();
 	_P += (A*_P + _P*A.transposed() +
 		B*R*B.transposed() + Q)*getDt();
+
 }
 
 void BlockLocalPositionEstimator::correctFlow() {	// TODO : use another other metric for glitch detection
