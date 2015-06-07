@@ -1086,6 +1086,8 @@ void BlockLocalPositionEstimator::correctGps() {	// TODO : use another other met
 void BlockLocalPositionEstimator::correctVision() {
 
 	math::Vector<6> y;
+	math::Matrix<n_y_vision, n_y_vision> R;
+	math::Matrix<n_y_vision, n_x> C;
 
 	static float last_vision_x = 0.0f;
 	static float last_vision_y = 0.0f;
@@ -1099,54 +1101,29 @@ void BlockLocalPositionEstimator::correctVision() {
 		y(3) = _sub_vision_vel.get().x - _visionBaseVel(0);
 		y(4) = _sub_vision_vel.get().y - _visionBaseVel(1);
 		y(5) = _sub_vision_vel.get().z - _visionBaseVel(2);
+
+		// measurement covariance
+		R(0,0) = _vision_xy_stddev.get()*_vision_xy_stddev.get();
+		R(1,1) = _vision_xy_stddev.get()*_vision_xy_stddev.get();
+		R(2,2) = _vision_z_stddev.get()*_vision_z_stddev.get();
 	}
-	else {	// Else, derivate velocity from position
-		static hrt_abstime last_vision_time = 0.0f;
-		static float vx = 0.0f;
-		static float vy = 0.0f;
-		static float vz = 0.0f;
-
-		float vision_dt = (_sub_vision_pos.get().timestamp_boot - last_vision_time) / 1e6f;
-		last_vision_time = _sub_vision_pos.get().timestamp_boot;
-
-		if (vision_dt > 0.000001f && vision_dt < 0.2f) {
-			vx = (y(0) - last_vision_x) / vision_dt;
-			vy = (y(1) - last_vision_y) / vision_dt;
-			vz = (y(2) - last_vision_z) / vision_dt;
-
-			last_vision_x = y(0);
-			last_vision_y = y(1);
-			last_vision_z = y(2);
-
-			y(3) = vx - y(0);
-			y(4) = vy - y(1);
-			y(5) = vz - y(2);
-		}
-		else {
-			// zero motion
-			y(3) = 0.0f - y(0);
-			y(4) = 0.0f - y(1);
-			y(5) = 0.0f - y(2);
-		}
+	else {
+		// measurement covariance
+		R(0,0) = _vision_xy_stddev.get()*_vision_xy_stddev.get();
+		R(1,1) = _vision_xy_stddev.get()*_vision_xy_stddev.get();
+		R(2,2) = _vision_z_stddev.get()*_vision_z_stddev.get();
+		R(3,3) = _vision_vxy_stddev.get()*_vision_vxy_stddev.get();
+		R(4,4) = _vision_vxy_stddev.get()*_vision_vxy_stddev.get();
+		R(5,5) = _vision_vz_stddev.get()*_vision_vz_stddev.get();
 	}
 
 	// vision measurement matrix, measures position and velocity
-	math::Matrix<n_y_vision, n_x> C;
 	C(Y_vision_x, X_x) = 1;
 	C(Y_vision_y, X_y) = 1;
 	C(Y_vision_z, X_z) = 1;
 	C(Y_vision_vx, X_vx) = 1;
 	C(Y_vision_vy, X_vy) = 1;
 	C(Y_vision_vz, X_vz) = 1;
-
-	// measurement covariance
-	math::Matrix<n_y_vision, n_y_vision> R;
-	R(0,0) = _vision_xy_stddev.get()*_vision_xy_stddev.get();
-	R(1,1) = _vision_xy_stddev.get()*_vision_xy_stddev.get();
-	R(2,2) = _vision_z_stddev.get()*_vision_z_stddev.get();
-	R(3,3) = _vision_vxy_stddev.get()*_vision_vxy_stddev.get();
-	R(4,4) = _vision_vxy_stddev.get()*_vision_vxy_stddev.get();
-	R(5,5) = _vision_vz_stddev.get()*_vision_vz_stddev.get();
 
 	// residual
 	math::Matrix<6,6> S_I =
