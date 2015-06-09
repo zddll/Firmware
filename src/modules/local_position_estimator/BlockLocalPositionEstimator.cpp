@@ -699,16 +699,16 @@ void BlockLocalPositionEstimator::predict() {
 	// input noise
 	math::Matrix<n_u, n_u> R;
 	R(U_ax, U_ax) =
-		_accel_xy_stddev.get()*_accel_xy_stddev.get();
+		_accel_xy_stddev.get()*_accel_xy_stddev.get()/getDt();
 	R(U_ay, U_ay) =
-		_accel_xy_stddev.get()*_accel_xy_stddev.get();
+		_accel_xy_stddev.get()*_accel_xy_stddev.get()/getDt();
 	R(U_az, U_az) =
-		_accel_z_stddev.get()*_accel_z_stddev.get();
+		_accel_z_stddev.get()*_accel_z_stddev.get()/getDt();
 
 	// process noise matrix
 	math::Matrix<n_x, n_x>  Q; // process noise
-	float pn_p_sq = _pn_p_stddev.get()*_pn_p_stddev.get();
-	float pn_v_sq = _pn_v_stddev.get()*_pn_v_stddev.get();
+	float pn_p_sq = _pn_p_stddev.get()*_pn_p_stddev.get()/getDt();
+	float pn_v_sq = _pn_v_stddev.get()*_pn_v_stddev.get()/getDt();
 	Q(X_x, X_x) = pn_p_sq;
 	Q(X_y, X_y) = pn_p_sq;
 	Q(X_z, X_z) = pn_p_sq;
@@ -1047,14 +1047,14 @@ void BlockLocalPositionEstimator::correctGps() {	// TODO : use another other met
 	math::Matrix<n_y_gps, n_y_gps> R;
 
 	// default to parameter, use gps cov if provided
-	float var_x = _gps_xy_stddev.get()*_gps_xy_stddev.get();
+	float var_xy = _gps_xy_stddev.get()*_gps_xy_stddev.get();
 	float var_z = _gps_z_stddev.get()*_gps_z_stddev.get();
 	float var_vxy = _gps_vxy_stddev.get()*_gps_vxy_stddev.get();
-	float var vz _gps_vz_stddev.get()*_gps_vz_stddev.get();
+	float var_vz = _gps_vz_stddev.get()*_gps_vz_stddev.get();
 
 	// if field is not zero, set it to the value provided
-	if (_sub_gps.get().eph > 1e-3) var_xy = _sub_gps.get().eph;
-	if (_sub_gps.get().epv > 1e-3) var_z = _sub_gps.get().epv;
+	if (_sub_gps.get().eph > 1e-3f) var_xy = _sub_gps.get().eph;
+	if (_sub_gps.get().epv > 1e-3f) var_z = _sub_gps.get().epv;
 
 	// TODO is velocity covariance provided from gps sub
 	R(0,0) = var_xy;

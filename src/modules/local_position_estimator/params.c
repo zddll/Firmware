@@ -39,37 +39,37 @@ PARAM_DEFINE_FLOAT(LPE_SNR_Z, 0.02f);
  * @min 0.05
  * @max 1
  */
-PARAM_DEFINE_FLOAT(LPE_LDR_Z, 0.1f);
+PARAM_DEFINE_FLOAT(LPE_LDR_Z, 0.03f);
 
 /**
- * Accelerometer xy standard deviation
+ * Accelerometer xy noise power (variance*sampling rate)
  *
  * @group Local Position Estimator
- * @unit m/s^2
- * @min 0.1
+ * @unit (m/s^2)^2-s
+ * @min 0.05
  * @max 2
  */
-PARAM_DEFINE_FLOAT(LPE_ACC_XY, 1.0f);
+PARAM_DEFINE_FLOAT(LPE_ACC_XY, 0.135f);
 
 /**
- * Accelerometer xy standard deviation
+ * Accelerometer z noise power (variance*sampling rate)
  *
  * @group Local Position Estimator
- * @unit m/s^2
- * @min 0.1
+ * @unit (m/s^2)^2-s
+ * @min 0.05
  * @max 2
  */
-PARAM_DEFINE_FLOAT(LPE_ACC_Z, 0.1f);
+PARAM_DEFINE_FLOAT(LPE_ACC_Z, 0.175f);
 
 /**
  * Barometric presssure altitude z standard deviation
  *
  * @group Local Position Estimator
  * @unit m
- * @min 1
- * @max 10
+ * @min 0.05
+ * @max 1
  */
-PARAM_DEFINE_FLOAT(LPE_BAR_Z, 3.0f);
+PARAM_DEFINE_FLOAT(LPE_BAR_Z, 0.255f);
 
 /**
  * GPS xy standard deviation
@@ -79,7 +79,7 @@ PARAM_DEFINE_FLOAT(LPE_BAR_Z, 3.0f);
  * @min 0.01
  * @max 5
  */
-PARAM_DEFINE_FLOAT(LPE_GPS_XY, 2.0f);
+PARAM_DEFINE_FLOAT(LPE_GPS_XY, 0.523f);
 
 /**
  * GPS z standard deviation
@@ -89,7 +89,7 @@ PARAM_DEFINE_FLOAT(LPE_GPS_XY, 2.0f);
  * @min 0.01
  * @max 5
  */
-PARAM_DEFINE_FLOAT(LPE_GPS_Z, 3.0f);
+PARAM_DEFINE_FLOAT(LPE_GPS_Z, 3.55f);
 
 /**
  * GPS xy velocity standard deviation
@@ -99,7 +99,7 @@ PARAM_DEFINE_FLOAT(LPE_GPS_Z, 3.0f);
  * @min 0.1
  * @max 2
  */
-PARAM_DEFINE_FLOAT(LPE_GPS_VXY, 1.0f);
+PARAM_DEFINE_FLOAT(LPE_GPS_VXY, 0.275f);
 
 /**
  * GPS z velocity standard deviation
@@ -109,24 +109,24 @@ PARAM_DEFINE_FLOAT(LPE_GPS_VXY, 1.0f);
  * @min 0.1
  * @max 2
  */
-PARAM_DEFINE_FLOAT(LPE_GPS_VZ, 1.0f);
+PARAM_DEFINE_FLOAT(LPE_GPS_VZ, 0.237f);
 
 /**
  * Vision position standard deviation
  *
  * @group Local Position Estimator
  * @unit m
- * @min 0.01
+ * @min 0
  * @max 10
  */
-PARAM_DEFINE_FLOAT(LPE_VIS_P, 1.0f); // vision pos std dev
+PARAM_DEFINE_FLOAT(LPE_VIS_P, 0.0f); // vision pos std dev
 
 /**
  * Vision velocity standard deviation
  *
  * @group Local Position Estimator
  * @unit m/s
- * @min 0.01
+ * @min 0
  * @max 10
  */
 PARAM_DEFINE_FLOAT(LPE_VIS_V, 1.0f);
