@@ -29,7 +29,7 @@ BlockLocalPositionEstimator::BlockLocalPositionEstimator() :
 	_sub_flow(ORB_ID(optical_flow), 0, 0, &getSubscriptions()),
 	_sub_sensor(ORB_ID(sensor_combined), 0, 0, &getSubscriptions()),
 	_sub_distance(ORB_ID(distance_sensor),
-			0, 0, &getSubscriptions()),
+			0, 1, &getSubscriptions()),
 	_sub_param_update(ORB_ID(parameter_update), 0, 0, &getSubscriptions()),
 	_sub_manual(ORB_ID(manual_control_setpoint), 0, 0, &getSubscriptions()),
 	_sub_home(ORB_ID(home_position), 0, 0, &getSubscriptions()),
