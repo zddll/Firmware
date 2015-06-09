@@ -1045,12 +1045,24 @@ void BlockLocalPositionEstimator::correctGps() {	// TODO : use another other met
 
 	// gps covariance matrix
 	math::Matrix<n_y_gps, n_y_gps> R;
-	R(0,0) = _gps_xy_stddev.get()*_gps_xy_stddev.get();
-	R(1,1) = _gps_xy_stddev.get()*_gps_xy_stddev.get();
-	R(2,2) = _gps_z_stddev.get()*_gps_z_stddev.get();
-	R(3,3) = _gps_vxy_stddev.get()*_gps_vxy_stddev.get();
-	R(4,4) = _gps_vxy_stddev.get()*_gps_vxy_stddev.get();
-	R(5,5) = _gps_vz_stddev.get()*_gps_vz_stddev.get();
+
+	// default to parameter, use gps cov if provided
+	float var_x = _gps_xy_stddev.get()*_gps_xy_stddev.get();
+	float var_z = _gps_z_stddev.get()*_gps_z_stddev.get();
+	float var_vxy = _gps_vxy_stddev.get()*_gps_vxy_stddev.get();
+	float var vz _gps_vz_stddev.get()*_gps_vz_stddev.get();
+
+	// if field is not zero, set it to the value provided
+	if (_sub_gps.get().eph > 1e-3) var_xy = _sub_gps.get().eph;
+	if (_sub_gps.get().epv > 1e-3) var_z = _sub_gps.get().epv;
+
+	// TODO is velocity covariance provided from gps sub
+	R(0,0) = var_xy;
+	R(1,1) = var_xy;
+	R(2,2) = var_z;
+	R(3,3) = var_vxy;
+	R(4,4) = var_vxy;
+	R(5,5) = var_vz;
 
 	// residual
 	math::Matrix<6,6> S_I = ((C*_P*C.transposed()) + R).inversed();
