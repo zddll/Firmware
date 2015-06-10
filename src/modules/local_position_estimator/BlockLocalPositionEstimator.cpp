@@ -29,7 +29,7 @@ BlockLocalPositionEstimator::BlockLocalPositionEstimator() :
 	_sub_flow(ORB_ID(optical_flow), 0, 0, &getSubscriptions()),
 	_sub_sensor(ORB_ID(sensor_combined), 0, 0, &getSubscriptions()),
 	_sub_distance(ORB_ID(distance_sensor),
-			0, 0, &getSubscriptions()),
+			0, 1, &getSubscriptions()),
 	_sub_param_update(ORB_ID(parameter_update), 0, 0, &getSubscriptions()),
 	_sub_manual(ORB_ID(manual_control_setpoint), 0, 0, &getSubscriptions()),
 	_sub_home(ORB_ID(home_position), 0, 0, &getSubscriptions()),
@@ -382,11 +382,11 @@ void BlockLocalPositionEstimator::update() {
 			correctVicon();
 		}
 	}
-
-	if (!(hrt_absolute_time() - _time_last_xy > XY_SRC_TIMEOUT)) {
+	bool est_timeout = (hrt_absolute_time() - _time_last_xy > XY_SRC_TIMEOUT);
+	if (!est_timeout) {
 		// update all publications if possible
 		publishLocalPos(true, true);
-		publishGlobalPos();
+		publishGlobalPos(!canEstimateXY && !est_timeout);
 		publishFilteredFlow();
 	}
 	else {
@@ -518,7 +518,7 @@ void BlockLocalPositionEstimator::initFlow() {
 			if(_flowMeanQual < MIN_FLOW_QUALITY)	
 			{
 				// retry initialisation till we have better flow data
-				warnx("[lpe] flow quality bad, retrying init:%d",
+				warnx("[lpe] flow quality bad, retrying init : %d",
 					int(_flowMeanQual));
 				_flowMeanQual = 0;
 				_flowInitCount = 0;
@@ -629,7 +629,7 @@ void BlockLocalPositionEstimator::publishLocalPos(bool z_valid, bool xy_valid) {
 	}
 }
 
-void BlockLocalPositionEstimator::publishGlobalPos() {
+void BlockLocalPositionEstimator::publishGlobalPos(bool dead_reckoning) {
 	// publish global position
 	double lat = 0;
 	double lon = 0;
@@ -651,11 +651,8 @@ void BlockLocalPositionEstimator::publishGlobalPos() {
 		_pub_gpos.get().epv = sqrtf(_P(X_z, X_z));
 		_pub_gpos.get().terrain_alt = 0;
 		_pub_gpos.get().terrain_alt_valid = false;
-		if (_timeStamp - _time_last_gps < 1) {
-			_pub_gpos.get().dead_reckoning = false;
-		} else {
-			_pub_gpos.get().dead_reckoning = true;
-		}
+		_pub_gpos.get().dead_reckoning = dead_reckoning;
+
 		_pub_gpos.update();
 	}
 }
@@ -701,16 +698,16 @@ void BlockLocalPositionEstimator::predict() {
 	// input noise
 	math::Matrix<n_u, n_u> R;
 	R(U_ax, U_ax) =
-		_accel_xy_stddev.get()*_accel_xy_stddev.get();
+		_accel_xy_stddev.get()*_accel_xy_stddev.get()/getDt();
 	R(U_ay, U_ay) =
-		_accel_xy_stddev.get()*_accel_xy_stddev.get();
+		_accel_xy_stddev.get()*_accel_xy_stddev.get()/getDt();
 	R(U_az, U_az) =
-		_accel_z_stddev.get()*_accel_z_stddev.get();
+		_accel_z_stddev.get()*_accel_z_stddev.get()/getDt();
 
 	// process noise matrix
 	math::Matrix<n_x, n_x>  Q; // process noise
-	float pn_p_sq = _pn_p_stddev.get()*_pn_p_stddev.get();
-	float pn_v_sq = _pn_v_stddev.get()*_pn_v_stddev.get();
+	float pn_p_sq = _pn_p_stddev.get()*_pn_p_stddev.get()/getDt();
+	float pn_v_sq = _pn_v_stddev.get()*_pn_v_stddev.get()/getDt();
 	Q(X_x, X_x) = pn_p_sq;
 	Q(X_y, X_y) = pn_p_sq;
 	Q(X_z, X_z) = pn_p_sq;
@@ -725,7 +722,7 @@ void BlockLocalPositionEstimator::predict() {
 
 }
 
-void BlockLocalPositionEstimator::correctFlow() {	// TODO : use another other metric for glitch detection
+void BlockLocalPositionEstimator::correctFlow() {	
 
 	// flow measurement matrix and noise matrix
 	math::Matrix<n_y_flow, n_x> C;
@@ -752,11 +749,13 @@ void BlockLocalPositionEstimator::correctFlow() {	// TODO : use another other me
 	
 	// calculate velocity over ground
 	if (_sub_flow.get().integration_timespan > 0) {
-		flow_speed[0] = _sub_flow.get().pixel_flow_x_integral /
-			(_sub_flow.get().integration_timespan / 1e6f) *
+		flow_speed[0] = (_sub_flow.get().pixel_flow_x_integral /
+			(_sub_flow.get().integration_timespan / 1e6f) - 
+			_sub_att.get().pitchspeed) *		// Body rotation correction TODO check this
 			_x(X_z);
-		flow_speed[1] = _sub_flow.get().pixel_flow_y_integral /
-			(_sub_flow.get().integration_timespan / 1e6f) *
+		flow_speed[1] = (_sub_flow.get().pixel_flow_y_integral /
+			(_sub_flow.get().integration_timespan / 1e6f) -
+			_sub_att.get().rollspeed) *		// Body rotation correction
 			_x(X_z);
 	} else {
 		flow_speed[0] = 0;
@@ -800,8 +799,14 @@ void BlockLocalPositionEstimator::correctFlow() {	// TODO : use another other me
 	// fault detection
 	float beta = sqrtf(r*(S_I*r));
 
+	if (_sub_flow.get().quality < MIN_FLOW_QUALITY) {
+		if (!_flowFault) {
+			mavlink_log_info(_mavlink_fd, "[lpe] bad flow data ");
+			warnx("[lpe] bad flow data ");
+		}
+		_flowFault = 2;
 	// 3 std devations away
-	if (beta > 3) {
+	} else if (beta > 3) {
 		if (!_flowFault) {
 			mavlink_log_info(_mavlink_fd, "[lpe] flow fault,  beta %5.2f", double(beta));
 			warnx("[lpe] flow fault,  beta %5.2f", double(beta));
@@ -834,12 +839,6 @@ void BlockLocalPositionEstimator::correctSonar() {
 	if(_sub_distance.get().type != distance_sensor_s::MAV_DISTANCE_SENSOR_ULTRASOUND) return;
 	
 	float d = _sub_distance.get().current_distance;
-	if (d < _sub_distance.get().min_distance ||
-			d > _sub_distance.get().max_distance) {
-		mavlink_log_info(_mavlink_fd, "[lpe] sonar out of range");
-		warnx("[lpe] sonar out of range");
-		return;
-	}
 
 	// sonar measurement matrix and noise matrix
 	math::Matrix<n_y_sonar, n_x> C;
@@ -870,13 +869,13 @@ void BlockLocalPositionEstimator::correctSonar() {
 	// fault detection
 	float beta = sqrtf(r*(S_I*r));
 
-	// zero is an error code for the sonar
-	if (d < 0.001f) {
+	if (d < _sub_distance.get().min_distance ||
+	    d > _sub_distance.get().max_distance) {
 		if (!_sonarFault) {
-			mavlink_log_info(_mavlink_fd, "[lpe] sonar error");
-			warnx("[lpe] sonar error");
+			mavlink_log_info(_mavlink_fd, "[lpe] sonar out of range");
+			warnx("[lpe] sonar out of range");
 		}
-		_sonarFault = 2;
+		_sonarFault = 2;	
 	// 3 std devations away
 	} else if (beta > 3) {
 		if (!_sonarFault) {
@@ -950,15 +949,10 @@ void BlockLocalPositionEstimator::correctLidar() {
 	if(_sub_distance.get().type != distance_sensor_s::MAV_DISTANCE_SENSOR_LASER) return;	
 
 	float d = _sub_distance.get().current_distance;
-	if (d < _sub_distance.get().min_distance ||
-			d > _sub_distance.get().max_distance) {
-		mavlink_log_info(_mavlink_fd, "[lpe] lidar out of range");
-		warnx("[lpe] lidar out of range");
-		return;
-	}
+	
 	math::Matrix<n_y_lidar, n_x> C;
 	C(Y_lidar_z, X_z) = -1; // measured altitude,
-		 // negative down dir.
+		 		// negative down dir.
 
 	// use parameter covariance unless sensor provides reasonable value
 	math::Matrix<n_y_lidar, n_y_lidar> R;
@@ -982,10 +976,11 @@ void BlockLocalPositionEstimator::correctLidar() {
 	float beta = sqrtf(r*(S_I*r));
 
 	// zero is an error code for the lidar
-	if (d < 0.001f) {
-		if (!(_lidarFault == 2)) {
-			mavlink_log_info(_mavlink_fd, "[lpe] lidar error");
-			warnx("[lpe] lidar error");
+	if (d < _sub_distance.get().min_distance ||
+	    d > _sub_distance.get().max_distance) {
+		if (!_lidarFault) {
+			mavlink_log_info(_mavlink_fd, "[lpe] lidar out of range");
+			warnx("[lpe] lidar out of range");
 		}
 		_lidarFault = 2;
 	} else if (beta > 3) { // 3 standard deviations away
@@ -1047,12 +1042,24 @@ void BlockLocalPositionEstimator::correctGps() {	// TODO : use another other met
 
 	// gps covariance matrix
 	math::Matrix<n_y_gps, n_y_gps> R;
-	R(0,0) = _gps_xy_stddev.get()*_gps_xy_stddev.get();
-	R(1,1) = _gps_xy_stddev.get()*_gps_xy_stddev.get();
-	R(2,2) = _gps_z_stddev.get()*_gps_z_stddev.get();
-	R(3,3) = _gps_vxy_stddev.get()*_gps_vxy_stddev.get();
-	R(4,4) = _gps_vxy_stddev.get()*_gps_vxy_stddev.get();
-	R(5,5) = _gps_vz_stddev.get()*_gps_vz_stddev.get();
+
+	// default to parameter, use gps cov if provided
+	float var_xy = _gps_xy_stddev.get()*_gps_xy_stddev.get();
+	float var_z = _gps_z_stddev.get()*_gps_z_stddev.get();
+	float var_vxy = _gps_vxy_stddev.get()*_gps_vxy_stddev.get();
+	float var_vz = _gps_vz_stddev.get()*_gps_vz_stddev.get();
+
+	// if field is not zero, set it to the value provided
+	if (_sub_gps.get().eph > 1e-3f) var_xy = _sub_gps.get().eph;
+	if (_sub_gps.get().epv > 1e-3f) var_z = _sub_gps.get().epv;
+
+	// TODO is velocity covariance provided from gps sub
+	R(0,0) = var_xy;
+	R(1,1) = var_xy;
+	R(2,2) = var_z;
+	R(3,3) = var_vxy;
+	R(4,4) = var_vxy;
+	R(5,5) = var_vz;
 
 	// residual
 	math::Matrix<6,6> S_I = ((C*_P*C.transposed()) + R).inversed();
