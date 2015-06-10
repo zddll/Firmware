@@ -320,7 +320,7 @@ void BlockLocalPositionEstimator::update() {
 
 	// do prediction if we have a reasonable set of
 	// initialized sensors
-	if (canEstimateZ) {
+	if (canEstimateXY && canEstimateZ) {
 		predict();
 	}
 
