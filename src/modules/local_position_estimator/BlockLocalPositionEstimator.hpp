@@ -117,7 +117,7 @@ private:
 	// ----------------------------
 
 	// predict the next state
-	void predict();
+	void predict(bool canEstimateXY, bool canEstimateZ);
 
 	// correct the state prediction wtih a measurement
 	void correctBaro();

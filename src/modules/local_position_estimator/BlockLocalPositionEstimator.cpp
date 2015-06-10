@@ -318,11 +318,8 @@ void BlockLocalPositionEstimator::update() {
 		_P *= 0.1;
 	}
 
-	// do prediction if we have a reasonable set of
-	// initialized sensors
-	if (canEstimateXY && canEstimateZ) {
-		predict();
-	}
+	// do prediction
+	predict(canEstimateXY, canEstimateZ);
 
 	// sensor corrections/ initializations
 	if (gpsUpdated) {
@@ -668,7 +665,12 @@ void BlockLocalPositionEstimator::publishFilteredFlow() {
 	}
 }
 
-void BlockLocalPositionEstimator::predict() {
+void BlockLocalPositionEstimator::predict(bool canEstimateXY,
+		bool canEstimateZ) {
+	// if can't update anything, don't propagate
+	// state or covariance
+	if (!canEstimateXY && !canEstimateZ) return;
+
 	if (_integrate.get() && _sub_att.get().R_valid) {
 		math::Matrix<3,3> R_att(_sub_att.get().R);
 		math::Vector<3> a(_sub_sensor.get().accelerometer_m_s2);
@@ -717,7 +719,48 @@ void BlockLocalPositionEstimator::predict() {
 	Q(X_vz, X_vz) = pn_v_sq;
 
 	// continuous time kalman filter prediction
-	_x += (A*_x + B*_u)*getDt();
+	math::Vector<n_x>  dx = (A*_x + B*_u)*getDt();
+	math::Matrix<n_x, n_x>  dP = (A*_P + _P*A.transposed() +
+		B*R*B.transposed() + Q)*getDt();
+
+	// only predict for components we have
+	// valid measurements for, also
+	// don't propagate covariance if not
+	// getting measurements, so it doesn't blow up
+	if (!canEstimateXY) {
+		for (int i=X_x; i<X_y+1;i++) {
+			dx(i) = 0;
+			for (int j=X_x; j<X_y+1;j++) {
+				dP(i,j) = 0;
+			}
+		}
+		for (int i=X_vx; i<X_vy+1;i++) {
+			dx(i) = 0;
+			for (int j=X_vx; j<X_vy+1;j++) {
+				dP(i,j) = 0;
+			}
+		}
+	}
+	if (!canEstimateZ) {
+		dx(X_z) = 0;
+		dx(X_vz) = 0;
+		dP(X_z, X_z) = 0;
+		dP(X_vz, X_vz) = 0;
+		for (int i=X_x; i<X_z+1;i++) {
+			dx(i) = 0;
+			for (int j=X_x; j<X_z+1;j++) {
+				dP(i,j) = 0;
+			}
+		}
+	}
+
+	if (!canEstimateZ) {
+		dx(X_z) = 0;
+		dx(X_vz) = 0;
+	}
+	_x += dx;
+	_x += dP;
+
 	_P += (A*_P + _P*A.transposed() +
 		B*R*B.transposed() + Q)*getDt();
 
