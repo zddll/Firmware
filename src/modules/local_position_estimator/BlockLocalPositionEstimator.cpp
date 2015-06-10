@@ -1051,8 +1051,8 @@ void BlockLocalPositionEstimator::correctGps() {	// TODO : use another other met
 	float var_vz = _gps_vz_stddev.get()*_gps_vz_stddev.get();
 
 	// if field is not zero, set it to the value provided
-	if (_sub_gps.get().eph > 1e-3f) var_xy = _sub_gps.get().eph;
-	if (_sub_gps.get().epv > 1e-3f) var_z = _sub_gps.get().epv;
+	if (_sub_gps.get().eph > 1e-3f) var_xy = _sub_gps.get().eph**2;
+	if (_sub_gps.get().epv > 1e-3f) var_z = _sub_gps.get().epv**2;
 
 	// TODO is velocity covariance provided from gps sub
 	R(0,0) = var_xy;
