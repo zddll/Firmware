@@ -724,34 +724,12 @@ void BlockLocalPositionEstimator::predict(bool canEstimateXY,
 		B*R*B.transposed() + Q)*getDt();
 
 	// only predict for components we have
-	// valid measurements for, also
-	// don't propagate covariance if not
-	// getting measurements, so it doesn't blow up
+	// valid measurements for
 	if (!canEstimateXY) {
-		for (int i=X_x; i<X_y+1;i++) {
-			dx(i) = 0;
-			for (int j=X_x; j<X_y+1;j++) {
-				dP(i,j) = 0;
-			}
-		}
-		for (int i=X_vx; i<X_vy+1;i++) {
-			dx(i) = 0;
-			for (int j=X_vx; j<X_vy+1;j++) {
-				dP(i,j) = 0;
-			}
-		}
-	}
-	if (!canEstimateZ) {
-		dx(X_z) = 0;
-		dx(X_vz) = 0;
-		dP(X_z, X_z) = 0;
-		dP(X_vz, X_vz) = 0;
-		for (int i=X_x; i<X_z+1;i++) {
-			dx(i) = 0;
-			for (int j=X_x; j<X_z+1;j++) {
-				dP(i,j) = 0;
-			}
-		}
+		dx(X_x) = 0;
+		dx(X_y) = 0;
+		dx(X_vx) = 0;
+		dx(X_vy) = 0;
 	}
 
 	if (!canEstimateZ) {
