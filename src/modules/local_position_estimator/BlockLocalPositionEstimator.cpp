@@ -720,8 +720,6 @@ void BlockLocalPositionEstimator::predict(bool canEstimateXY,
 
 	// continuous time kalman filter prediction
 	math::Vector<n_x>  dx = (A*_x + B*_u)*getDt();
-	math::Matrix<n_x, n_x>  dP = (A*_P + _P*A.transposed() +
-		B*R*B.transposed() + Q)*getDt();
 
 	// only predict for components we have
 	// valid measurements for
