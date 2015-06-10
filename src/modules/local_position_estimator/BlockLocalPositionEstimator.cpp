@@ -758,9 +758,9 @@ void BlockLocalPositionEstimator::predict(bool canEstimateXY,
 		dx(X_z) = 0;
 		dx(X_vz) = 0;
 	}
-	_x += dx;
-	_x += dP;
 
+	// propagate
+	_x += dx;
 	_P += (A*_P + _P*A.transposed() +
 		B*R*B.transposed() + Q)*getDt();
 
