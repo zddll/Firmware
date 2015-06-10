@@ -197,3 +197,13 @@ PARAM_DEFINE_FLOAT(LPE_PN_P, 1.0f);
  * @max 5
  */
 PARAM_DEFINE_FLOAT(LPE_PN_V, 0.1f);
+
+/**
+ * Fault detection threshold in standard deviations
+ *
+ * @group Local Position Estimator
+ * @unit stddev
+ * @min 3
+ * @max 10
+ */
+PARAM_DEFINE_FLOAT(LPE_BETA_MAX, 4.0f);

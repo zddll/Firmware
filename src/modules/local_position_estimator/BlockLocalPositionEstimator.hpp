@@ -195,7 +195,8 @@ private:
 	BlockParamFloat  _vision_z_stddev;
 	BlockParamFloat  _vision_vxy_stddev;
 	BlockParamFloat  _vision_vz_stddev;
-	BlockParamInt	 _no_vision;
+	BlockParamInt    _no_vision;
+	BlockParamFloat    _beta_max;
 
 	BlockParamFloat  _vicon_p_stddev;
 

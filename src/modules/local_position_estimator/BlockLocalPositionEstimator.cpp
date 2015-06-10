@@ -63,6 +63,7 @@ BlockLocalPositionEstimator::BlockLocalPositionEstimator() :
 	_vision_vxy_stddev(this, "VIS_VXY"),
 	_vision_vz_stddev(this, "VIS_VZ"),
 	_no_vision(this, "NO_VIS"),
+	_beta_max(this, "BETA_MAX"),
 	_vicon_p_stddev(this, "VIC_P"),
 	_pn_p_stddev(this, "PN_P"),
 	_pn_v_stddev(this, "PN_V"),
@@ -799,9 +800,7 @@ void BlockLocalPositionEstimator::correctFlow() {	// TODO : use another other me
 
 	// fault detection
 	float beta = sqrtf(r*(S_I*r));
-
-	// 3 std devations away
-	if (beta > 3) {
+	if (beta > _beta_max.get()) {
 		if (!_flowFault) {
 			mavlink_log_info(_mavlink_fd, "[lpe] flow fault,  beta %5.2f", double(beta));
 			warnx("[lpe] flow fault,  beta %5.2f", double(beta));
@@ -877,8 +876,8 @@ void BlockLocalPositionEstimator::correctSonar() {
 			warnx("[lpe] sonar error");
 		}
 		_sonarFault = 2;
-	// 3 std devations away
-	} else if (beta > 3) {
+	// beta > beta_max
+	} else if (beta > _beta_max.get()) {
 		if (!_sonarFault) {
 			mavlink_log_info(_mavlink_fd, "[lpe] sonar fault,  beta %5.2f", double(beta));
 			warnx("[lpe] sonar fault,  beta %5.2f", double(beta));
@@ -921,7 +920,7 @@ void BlockLocalPositionEstimator::correctBaro() {
 
 	// fault detection
 	float beta = sqrtf(r*(S_I*r));
-	if (beta > 3) { // 3 standard deviations away
+	if (beta > _beta_max.get()) {
 		if (!_baroFault) {
 			mavlink_log_info(_mavlink_fd, "[lpe] baro fault, beta %5.2f", double(beta));
 			warnx("[lpe] baro fault, beta %5.2f", double(beta));
@@ -988,7 +987,7 @@ void BlockLocalPositionEstimator::correctLidar() {
 			warnx("[lpe] lidar error");
 		}
 		_lidarFault = 2;
-	} else if (beta > 3) { // 3 standard deviations away
+	} else if (beta > _beta_max.get()) {
 		if (!_lidarFault) {
 			mavlink_log_info(_mavlink_fd, "[lpe] lidar fault, beta %5.2f", double(beta));
 			warnx("[lpe] lidar fault, beta %5.2f", double(beta));
@@ -1002,7 +1001,7 @@ void BlockLocalPositionEstimator::correctLidar() {
 	}
 
 	// kalman filter correction if no fault
-	// want to ignore corrections > 3 std. dev since lidar gives
+	// want to ignore corrections > beta_max since lidar gives
 	// bogus readings at times
 	if (_lidarFault == 0) {
 		math::Matrix<n_x, n_y_lidar> K = _P*C.transposed()*S_I;
@@ -1072,10 +1071,19 @@ void BlockLocalPositionEstimator::correctGps() {	// TODO : use another other met
 
 	// fault detection
 	float beta = sqrtf(r*(S_I*r));
-	if (beta > 3) { // 3 standard deviations away
+	if (beta > _beta_max.get()) {
 		if (!_gpsFault) {
 			mavlink_log_info(_mavlink_fd, "[lpe] gps fault, beta: %5.2f", double(beta));
 			warnx("[lpe] gps fault, beta: %5.2f", double(beta));
+			mavlink_log_info(_mavlink_fd, "[lpe] r: %5.2f %5.2f %5.2f %5.2f %5.2f %5.2f", 
+					double(r(0)),  double(r(1)), double(r(2)),
+					double(r(3)), double(r(4)), double(r(5)));
+			mavlink_log_info(_mavlink_fd, "[lpe] S_I: %5.2f %5.2f %5.2f %5.2f %5.2f %5.2f", 
+					double(S_I(0,0)),  double(S_I(1,1)), double(S_I(2,2)),
+					double(S_I(3,3)),  double(S_I(4,4)), double(S_I(5,5)));
+			mavlink_log_info(_mavlink_fd, "[lpe] r: %5.2f %5.2f %5.2f %5.2f %5.2f %5.2f", 
+					double(r(0)),  double(r(1)), double(r(2)),
+					double(r(3)), double(r(4)), double(r(5)));
 		}
 		_gpsFault = 1;
 		// trust GPS less
@@ -1167,7 +1175,7 @@ void BlockLocalPositionEstimator::correctVision() {
 
 	// fault detection
 	float beta = sqrtf(r*(S_I*r));
-	if (beta > 3) { // 3 standard deviations away
+	if (beta > _beta_max.get()) {
 		if (!_visionFault) {
 			mavlink_log_info(_mavlink_fd, "[lpe] vision fault, beta %5.2f", double(beta));
 			warnx("[lpe] vision fault, beta %5.2f", double(beta));
@@ -1219,7 +1227,7 @@ void BlockLocalPositionEstimator::correctVicon() {
 
 	// fault detection
 	float beta = sqrtf(r*(S_I*r));
-	if (beta > 3) { // 3 standard deviations away
+	if (beta > _beta_max.get()) {
 		if (!_viconFault) {
 			mavlink_log_info(_mavlink_fd, "[lpe] vicon fault, beta %5.2f", double(beta));
 			warnx("[lpe] vicon fault, beta %5.2f", double(beta));
