@@ -183,17 +183,27 @@ PARAM_DEFINE_FLOAT(LPE_VIC_P, 0.05f);
  *
  * @group Local Position Estimator
  * @unit m
- * @min 0.01
+ * @min 0
  * @max 1
  */
-PARAM_DEFINE_FLOAT(LPE_PN_P, 1.0f);
+PARAM_DEFINE_FLOAT(LPE_PN_P, 0.0f);
 
 /**
  * Velocity propagation process noise.
  *
  * @group Local Position Estimator
  * @unit m/s
- * @min 0.01
+ * @min 0
  * @max 5
  */
-PARAM_DEFINE_FLOAT(LPE_PN_V, 0.1f);
+PARAM_DEFINE_FLOAT(LPE_PN_V, 0.0f);
+
+/**
+ * Fault detection threshold in standard deviations
+ *
+ * @group Local Position Estimator
+ * @unit stddev
+ * @min 3
+ * @max 10
+ */
+PARAM_DEFINE_FLOAT(LPE_BETA_MAX, 5.0f);
