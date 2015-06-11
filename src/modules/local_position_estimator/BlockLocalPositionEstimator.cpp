@@ -129,7 +129,8 @@ BlockLocalPositionEstimator::BlockLocalPositionEstimator() :
 	_lidarFault(0),
 	_flowFault(0),
 	_sonarFault(0),
-	_visionFault(0),
+	_visionPosFault(0),
+	_visionVelFault(0),
 	_viconFault(0),
 
 	//timeouts
@@ -192,7 +193,8 @@ void BlockLocalPositionEstimator::update() {
 
 	// check for sane values of dt
 	// to prevent large control responses
-	if (dt > 1.0f || dt < 0) return;
+	if (dt > 1.0f || dt < 0)
+		return;
 
 	// set dt for all child blocks
 	setDt(dt);
@@ -204,11 +206,13 @@ void BlockLocalPositionEstimator::update() {
 	bool lidarUpdated = false;
 	bool sonarUpdated = false;
 	if (_sub_distance.updated()) {
-		if (_sub_distance.get().type == distance_sensor_s::MAV_DISTANCE_SENSOR_LASER) {
+		if (_sub_distance.get().type == distance_sensor_s::MAV_DISTANCE_SENSOR_LASER)
 			lidarUpdated = true;		
-		}
-		if (_sub_distance.get().type == distance_sensor_s::MAV_DISTANCE_SENSOR_ULTRASOUND) {
-			sonarUpdated = true;		
+		if (_sub_distance.get().type == distance_sensor_s::MAV_DISTANCE_SENSOR_ULTRASOUND)
+			sonarUpdated = true;
+		if (_sub_distance.get().type == distance_sensor_s::MAV_DISTANCE_SENSOR_INFRARED) {
+			mavlink_log_info(_mavlink_fd, "[lpe] no support to short-range infrared sensors ");
+			warnx("[lpe] short-range infrared detected. Ignored... ");		
 		}
 	}
 	bool gpsUpdated = _sub_gps.updated();
@@ -221,10 +225,12 @@ void BlockLocalPositionEstimator::update() {
 	updateSubscriptions();
 
 	// update parameters
-	if (paramsUpdated) updateParams();
+	if (paramsUpdated)
+		updateParams();
 
 	// update home position projection
-	if (homeUpdated) updateHome();
+	if (homeUpdated)
+		updateHome();
 
 	// check for timeouts on external sources
 	if((hrt_absolute_time() - _time_last_vision_p > VISION_POSITION_TIMEOUT) && _visionPosInitialized)
@@ -235,9 +241,8 @@ void BlockLocalPositionEstimator::update() {
 			mavlink_log_info(_mavlink_fd, "[lpe] vision position timeout ");
 			warnx("[lpe] vision position timeout ");
 		}
-	} else {
+	} else
 		_visionPosTimeout = false;
-	}
 
 	if((hrt_absolute_time() - _time_last_vision_v > VISION_VELOCITY_TIMEOUT) && _visionVelInitialized)
 	{
@@ -247,9 +252,8 @@ void BlockLocalPositionEstimator::update() {
 			mavlink_log_info(_mavlink_fd, "[lpe] vision velocity timeout ");
 			warnx("[lpe] vision velocity timeout ");
 		}
-	} else {
+	} else
 		_visionVelTimeout = false;
-	}
 
 	if((hrt_absolute_time() -_time_last_vicon > VICON_TIMEOUT) && _viconInitialized)
 	{
@@ -259,9 +263,8 @@ void BlockLocalPositionEstimator::update() {
 			mavlink_log_info(_mavlink_fd, "[lpe] vicon timeout ");
 			warnx("[lpe] vicon timeout ");
 		}
-	} else {
+	} else
 		_viconTimeout = false;
-	}
 
 	// determine if we should start estimating
 	bool canEstimateZ = 
@@ -269,17 +272,16 @@ void BlockLocalPositionEstimator::update() {
 	bool canEstimateXY = 
 		(_gpsInitialized && !_gpsFault) ||
  		(_flowInitialized && !_flowFault) ||
- 		(_visionPosInitialized && !_visionPosTimeout && !_visionFault) ||
+ 		(_visionPosInitialized && !_visionPosTimeout && !_visionPosFault) ||
+ 		(_visionVelInitialized && !_visionVelTimeout && !_visionVelFault) ||
  		(_viconInitialized && !_viconTimeout && !_viconFault);
 
-	if(canEstimateXY) {
+	if(canEstimateXY)
 		_time_last_xy = hrt_absolute_time();	
-	}
 		
 	// if we have no lat, lon initialized projection at 0,0
-	if (canEstimateXY && !_map_ref.init_done) {
+	if (canEstimateXY && !_map_ref.init_done)
 		map_projection_init(&_map_ref, 0, 0);
-	}
 
 	// reinitialize x if necessary
 	bool reinit_x = false;
@@ -323,37 +325,33 @@ void BlockLocalPositionEstimator::update() {
 
 	// sensor corrections/ initializations
 	if (gpsUpdated) {
-		if (!_gpsInitialized) {
+		if (!_gpsInitialized)
 			initGps();
-		} else {
+		else
 			correctGps();
-		}
 	}
 	if (baroUpdated) {
-		if (!_baroInitialized) {
+		if (!_baroInitialized)
 			initBaro();
-		} else {
+		else
 			correctBaro();
-		}
 	}
 	if (lidarUpdated) {
-		if (!_lidarInitialized) {
+		if (!_lidarInitialized)
 			initLidar();
-		} else {
+		else
 			correctLidar();
-		}
 	}
 	if (sonarUpdated) {
-		if (!_sonarInitialized) {
+		if (!_sonarInitialized)
 			initSonar();
-		} else {
+		else
 			correctSonar();
-		}
 	}
 	if (flowUpdated) {
-		if (!_flowInitialized) {
+		if (!_flowInitialized)
 			initFlow();
-		} else {
+		else {
 			perf_begin(_loop_perf);// TODO
 			correctFlow();	
 			perf_count(_interval_perf);
@@ -362,23 +360,23 @@ void BlockLocalPositionEstimator::update() {
 	}
 	if (_no_vision.get() != CBRK_NO_VISION_KEY) { // check if no vision circuit breaker is set
 		if (visionPosUpdated) {
-			if (!_visionPosInitialized) {
+			if (!_visionPosInitialized)
 				initVisionPos();
-			}
-			else if (visionVelUpdated && !_visionVelInitialized) {
+			else
+				correctVisionPos();
+		}
+		if (visionVelUpdated) {
+			if (!_visionVelInitialized)
 				initVisionVel();
-			}
-			else {
-				correctVision();
-			}
+			else
+				correctVisionVel();
 		}
 	}
 	if (viconUpdated) {
-		if (!_viconInitialized) {
+		if (!_viconInitialized)
 			initVicon();
-		} else {
+		else
 			correctVicon();
-		}
 	}
 	bool est_timeout = (hrt_absolute_time() - _time_last_xy > XY_SRC_TIMEOUT);
 	if (!est_timeout) {
@@ -387,10 +385,9 @@ void BlockLocalPositionEstimator::update() {
 		publishGlobalPos(!canEstimateXY && !est_timeout);
 		publishFilteredFlow();
 	}
-	else {
+	else
 		// publish only Z estimate
 		publishLocalPos(true, false);
-	}
 
 }
 
@@ -460,9 +457,9 @@ void BlockLocalPositionEstimator::initLidar() {
 	bool valid = false;
 	float d = _sub_distance.get().current_distance;
 	if (d < _sub_distance.get().max_distance &&
-		d > _sub_distance.get().min_distance) {
+		d > _sub_distance.get().min_distance)
 		valid = true;
-	}
+
 	if (!_lidarInitialized && valid) {
 		// increament sums for mean
 		_lidarAltHome += _sub_distance.get().current_distance;
@@ -486,9 +483,9 @@ void BlockLocalPositionEstimator::initSonar() {
 	bool valid = false;
 	float d = _sub_distance.get().current_distance;
 	if (d < _sub_distance.get().max_distance &&
-		d > _sub_distance.get().min_distance) {
+		d > _sub_distance.get().min_distance)
 		valid = true;
-	}
+
 	if (!_sonarInitialized && valid) {
 		// increament sums for mean
 		_sonarAltHome += _sub_distance.get().current_distance;
@@ -553,7 +550,6 @@ void BlockLocalPositionEstimator::initVisionPos() {
 }
 
 void BlockLocalPositionEstimator::initVisionVel() {
-
 	// collect vision velocity data
 	if (!_visionVelInitialized) {
 		// increament sums for mean
@@ -676,9 +672,8 @@ void BlockLocalPositionEstimator::predict(bool canEstimateXY,
 		math::Vector<3> a(_sub_sensor.get().accelerometer_m_s2);
 		_u = R_att*a;
 		_u(2) += 9.81f; // add g
-	} else {
+	} else
 		_u = math::Vector<3>({0,0,0});
-	}
 
 	// dynamics matrix
 	math::Matrix<n_x, n_x>  A; // state dynamics matrix
@@ -856,7 +851,8 @@ void BlockLocalPositionEstimator::correctFlow() {
 
 void BlockLocalPositionEstimator::correctSonar() {
 	
-	if(_sub_distance.get().type != distance_sensor_s::MAV_DISTANCE_SENSOR_ULTRASOUND) return;
+	if(_sub_distance.get().type != distance_sensor_s::MAV_DISTANCE_SENSOR_ULTRASOUND)
+		return;
 	
 	float d = _sub_distance.get().current_distance;
 
@@ -867,11 +863,10 @@ void BlockLocalPositionEstimator::correctSonar() {
 	// use parameter covariance unless sensor provides reasonable value
 	math::Matrix<n_y_sonar, n_y_sonar> R;
 	float cov = _sub_distance.get().covariance;
-	if (cov < 1.0e-3f) {
+	if (cov < 1.0e-3f)
 		R(0,0) = _sonar_z_stddev.get()*_sonar_z_stddev.get();
-	} else {
+	else
 		R(0,0) = cov;
-	}
 
 	// measurement
 	math::Vector<1> y;
@@ -966,7 +961,8 @@ void BlockLocalPositionEstimator::correctBaro() {
 
 void BlockLocalPositionEstimator::correctLidar() {
 
-	if(_sub_distance.get().type != distance_sensor_s::MAV_DISTANCE_SENSOR_LASER) return;	
+	if(_sub_distance.get().type != distance_sensor_s::MAV_DISTANCE_SENSOR_LASER)
+		return;	
 
 	float d = _sub_distance.get().current_distance;
 	
@@ -977,11 +973,10 @@ void BlockLocalPositionEstimator::correctLidar() {
 	// use parameter covariance unless sensor provides reasonable value
 	math::Matrix<n_y_lidar, n_y_lidar> R;
 	float cov = _sub_distance.get().covariance;
-	if (cov < 1.0e-3f) {
+	if (cov < 1.0e-3f)
 		R(0,0) = _lidar_z_stddev.get()*_lidar_z_stddev.get();
-	} else {
+	else
 		R(0,0) = cov;
-	}
 
 	math::Vector<1> y;
 	y(0) = (d - _lidarAltHome)*
@@ -1070,8 +1065,10 @@ void BlockLocalPositionEstimator::correctGps() {	// TODO : use another other met
 	float var_vz = _gps_vz_stddev.get()*_gps_vz_stddev.get();
 
 	// if field is not zero, set it to the value provided
-	if (_sub_gps.get().eph > 1e-3f) var_xy = _sub_gps.get().eph*_sub_gps.get().eph;
-	if (_sub_gps.get().epv > 1e-3f) var_z = _sub_gps.get().epv*_sub_gps.get().epv;
+	if (_sub_gps.get().eph > 1e-3f)
+		var_xy = _sub_gps.get().eph*_sub_gps.get().eph;
+	if (_sub_gps.get().epv > 1e-3f)
+		var_z = _sub_gps.get().epv*_sub_gps.get().epv;
 
 	// TODO is velocity covariance provided from gps sub
 	R(0,0) = var_xy;
@@ -1119,100 +1116,101 @@ void BlockLocalPositionEstimator::correctGps() {	// TODO : use another other met
 	_time_last_gps = _timeStamp;
 }
 
-void BlockLocalPositionEstimator::correctVision() {
+void BlockLocalPositionEstimator::correctVisionPos() {
 
-	math::Vector<6> y;
-
-	static float last_vision_x = 0.0f;
-	static float last_vision_y = 0.0f;
-	static float last_vision_z = 0.0f;
-
+	math::Vector<3> y;
 	y(0) = _sub_vision_pos.get().x - _visionHome(0);
 	y(1) = _sub_vision_pos.get().y - _visionHome(1);
 	y(2) = _sub_vision_pos.get().z - _visionHome(2);
 
-	if(_visionVelInitialized) {	// If subscribed to valid vision_speed_estimate topic, use its data
-		y(3) = _sub_vision_vel.get().x - _visionBaseVel(0);
-		y(4) = _sub_vision_vel.get().y - _visionBaseVel(1);
-		y(5) = _sub_vision_vel.get().z - _visionBaseVel(2);
-	}
-	else {	// Else, derivate velocity from position
-		static hrt_abstime last_vision_time = 0.0f;
-		static float vx = 0.0f;
-		static float vy = 0.0f;
-		static float vz = 0.0f;
-
-		float vision_dt = (_sub_vision_pos.get().timestamp_boot - last_vision_time) / 1e6f;
-		last_vision_time = _sub_vision_pos.get().timestamp_boot;
-
-		if (vision_dt > 0.000001f && vision_dt < 0.2f) {
-			vx = (y(0) - last_vision_x) / vision_dt;
-			vy = (y(1) - last_vision_y) / vision_dt;
-			vz = (y(2) - last_vision_z) / vision_dt;
-
-			last_vision_x = y(0);
-			last_vision_y = y(1);
-			last_vision_z = y(2);
-
-			y(3) = vx - y(0);
-			y(4) = vy - y(1);
-			y(5) = vz - y(2);
-		}
-		else {
-			// zero motion
-			y(3) = 0.0f - y(0);
-			y(4) = 0.0f - y(1);
-			y(5) = 0.0f - y(2);
-		}
-	}
-
-	// vision measurement matrix, measures position and velocity
-	math::Matrix<n_y_vision, n_x> C;
+	// vision measurement matrix, measures position
+	math::Matrix<n_y_vision_pos, n_x> C;
 	C(Y_vision_x, X_x) = 1;
 	C(Y_vision_y, X_y) = 1;
 	C(Y_vision_z, X_z) = 1;
-	C(Y_vision_vx, X_vx) = 1;
-	C(Y_vision_vy, X_vy) = 1;
-	C(Y_vision_vz, X_vz) = 1;
 
-	// measurement covariance
-	math::Matrix<n_y_vision, n_y_vision> R;
-	R(0,0) = _vision_xy_stddev.get()*_vision_xy_stddev.get();
-	R(1,1) = _vision_xy_stddev.get()*_vision_xy_stddev.get();
-	R(2,2) = _vision_z_stddev.get()*_vision_z_stddev.get();
-	R(3,3) = _vision_vxy_stddev.get()*_vision_vxy_stddev.get();
-	R(4,4) = _vision_vxy_stddev.get()*_vision_vxy_stddev.get();
-	R(5,5) = _vision_vz_stddev.get()*_vision_vz_stddev.get();
+	// noise matrix
+	math::Matrix<n_y_vision_pos, n_y_vision_pos> R;
+	R(Y_vision_x, Y_vision_x) = _vision_xy_stddev.get()*_vision_xy_stddev.get();
+	R(Y_vision_y, Y_vision_y) = _vision_xy_stddev.get()*_vision_xy_stddev.get();
+	R(Y_vision_z, Y_vision_z) = _vision_z_stddev.get()*_vision_z_stddev.get();
 
 	// residual
-	math::Matrix<6,6> S_I =
-		((C*_P*C.transposed()) + R).inversed();
-	math::Vector<6> r = y - C*_x;
+	math::Matrix<3,3> S_I = ((C*_P*C.transposed()) + R).inversed();
+	math::Vector<3> r = y - C*_x;
 
 	// fault detection
 	float beta = sqrtf(r*(S_I*r));
 	if (beta > _beta_max.get()) {
-		if (!_visionFault) {
-			mavlink_log_info(_mavlink_fd, "[lpe] vision fault, beta %5.2f", double(beta));
-			warnx("[lpe] vision fault, beta %5.2f", double(beta));
+		if (!_visionPosFault) {
+			mavlink_log_info(_mavlink_fd, "[lpe] vision position fault, beta %5.2f", double(beta));
+			warnx("[lpe] vision position fault, beta %5.2f", double(beta));
 		}
-		_visionFault = 1;
+		_visionPosFault = 1;
 		// trust less
 		S_I = ((C*_P*C.transposed()) + R*10).inversed();
-	} else if (_visionFault) {
-		_visionFault = 0;
-		mavlink_log_info(_mavlink_fd, "[lpe] vision OK");
-		warnx("[lpe] vision OK");
+	} else if (_visionPosFault) {
+		_visionPosFault = 0;
+		mavlink_log_info(_mavlink_fd, "[lpe] vision position OK");
+		warnx("[lpe] vision position OK");
 	}
 
-	// kalman filter correction if no hard fault
-	if (_visionFault < 2) {
-		math::Matrix<n_x, n_y_vision> K = _P*C.transposed()*S_I;
+	// kalman filter correction if no fault
+	if (_visionPosFault < 2) {
+		math::Matrix<n_x, n_y_vision_pos> K = _P*C.transposed()*S_I;
 		_x += K*r;
 		_P -= K*C*_P;
 	}
 
 	_time_last_vision_p = _sub_vision_pos.get().timestamp_boot;
+}
+
+void BlockLocalPositionEstimator::correctVisionVel() {
+
+	math::Vector<3> y;
+	y(3) = _sub_vision_vel.get().x - _visionBaseVel(0);
+	y(4) = _sub_vision_vel.get().y - _visionBaseVel(1);
+	y(5) = _sub_vision_vel.get().z - _visionBaseVel(2);
+
+	// vision measurement matrix, measures velocity
+	math::Matrix<n_y_vision_pos, n_x> C;
+	C(Y_vision_vx, X_vx) = 1;
+	C(Y_vision_vy, X_vy) = 1;
+	C(Y_vision_vz, X_vz) = 1;
+
+	// noise matrix
+	math::Matrix<n_y_vision_vel, n_y_vision_vel> R;
+	R(Y_vision_vx, Y_vision_vx) = _vision_vxy_stddev.get()*_vision_vxy_stddev.get();
+	R(Y_vision_vy, Y_vision_vy) = _vision_vxy_stddev.get()*_vision_vxy_stddev.get();
+	R(Y_vision_vz, Y_vision_vz) = _vision_vz_stddev.get()*_vision_vz_stddev.get();
+
+	// residual
+	math::Matrix<3,3> S_I = ((C*_P*C.transposed()) + R).inversed();
+	math::Vector<3> r = y - C*_x;
+
+	// fault detection
+	float beta = sqrtf(r*(S_I*r));
+	if (beta > _beta_max.get()) {
+		if (!_visionVelFault) {
+			mavlink_log_info(_mavlink_fd, "[lpe] vision velocity fault, beta %5.2f", double(beta));
+			warnx("[lpe] vision position fault, beta %5.2f", double(beta));
+		}
+		_visionVelFault = 1;
+		// trust less
+		S_I = ((C*_P*C.transposed()) + R*10).inversed();
+	} else if (_visionVelFault) {
+		_visionVelFault = 0;
+		mavlink_log_info(_mavlink_fd, "[lpe] vision velocity OK");
+		warnx("[lpe] vision velocity OK");
+	}
+
+	// kalman filter correction if no fault
+	if (_visionVelFault < 2) {
+		math::Matrix<n_x, n_y_vision_vel> K = _P*C.transposed()*S_I;
+		_x += K*r;
+		_P -= K*C*_P;
+	}
+
 	_time_last_vision_v = _sub_vision_vel.get().timestamp_boot;
 }
 
