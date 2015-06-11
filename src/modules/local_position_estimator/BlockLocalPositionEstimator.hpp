@@ -100,7 +100,8 @@ private:
 	static const uint8_t n_y_baro = 1;
 	static const uint8_t n_y_lidar = 1;
 	static const uint8_t n_y_gps = 6;
-	static const uint8_t n_y_vision = 6;
+	static const uint8_t n_y_vision_pos = 3;
+	static const uint8_t n_y_vision_vel = 3;
 	static const uint8_t n_y_vicon = 3;
 	enum {X_x=0, X_y, X_z, X_vx, X_vy, X_vz}; //, X_bx, X_by, X_bz};
 	enum {U_ax=0, U_ay, U_az};
@@ -125,7 +126,8 @@ private:
 	void correctLidar();
 	void correctFlow();
 	void correctSonar();
-	void correctVision();
+	void correctVisionPos();
+	void correctVisionVel();
 	void correctVicon();
 
 	// sensor initialization
@@ -196,7 +198,7 @@ private:
 	BlockParamFloat  _vision_vxy_stddev;
 	BlockParamFloat  _vision_vz_stddev;
 	BlockParamInt    _no_vision;
-	BlockParamFloat    _beta_max;
+	BlockParamFloat  _beta_max;
 
 	BlockParamFloat  _vicon_p_stddev;
 
@@ -264,7 +266,8 @@ private:
 	int _lidarFault;
 	int _flowFault;
 	int _sonarFault;
-	int _visionFault;
+	int _visionPosFault;
+	int _visionVelFault;
 	int _viconFault;
 	
 	bool _visionPosTimeout;
