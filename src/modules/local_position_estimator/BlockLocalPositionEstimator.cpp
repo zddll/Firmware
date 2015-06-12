@@ -51,8 +51,8 @@ BlockLocalPositionEstimator::BlockLocalPositionEstimator() :
 	_flow_xy_stddev(this, "FLW_XY"),
 	_sonar_z_stddev(this, "SNR_Z"),
 	_lidar_z_stddev(this, "LDR_Z"),
-	_accel_xy_stddev(this, "ACC_XY"),
-	_accel_z_stddev(this, "ACC_Z"),
+	_accel_xy_noise_power(this, "ACC_XY"),
+	_accel_z_noise_power(this, "ACC_Z"),
 	_baro_stddev(this, "BAR_Z"),
 	_gps_xy_stddev(this, "GPS_XY"),
 	_gps_z_stddev(this, "GPS_Z"),
@@ -65,8 +65,8 @@ BlockLocalPositionEstimator::BlockLocalPositionEstimator() :
 	_no_vision(this, "NO_VIS"),
 	_beta_max(this, "BETA_MAX"),
 	_vicon_p_stddev(this, "VIC_P"),
-	_pn_p_stddev(this, "PN_P"),
-	_pn_v_stddev(this, "PN_V"),
+	_pn_p_noise_power(this, "PN_P"),
+	_pn_v_noise_power(this, "PN_V"),
 
 	// misc
 	_polls(),
@@ -696,22 +696,22 @@ void BlockLocalPositionEstimator::predict(bool canEstimateXY,
 	// input noise
 	math::Matrix<n_u, n_u> R;
 	R(U_ax, U_ax) =
-		_accel_xy_stddev.get()*_accel_xy_stddev.get()/getDt();
+		_accel_xy_noise_power.get()/getDt();
 	R(U_ay, U_ay) =
-		_accel_xy_stddev.get()*_accel_xy_stddev.get()/getDt();
+		_accel_xy_noise_power.get()/getDt();
 	R(U_az, U_az) =
-		_accel_z_stddev.get()*_accel_z_stddev.get()/getDt();
+		_accel_z_noise_power.get()/getDt();
 
 	// process noise matrix
 	math::Matrix<n_x, n_x>  Q; // process noise
-	float pn_p_sq = _pn_p_stddev.get()*_pn_p_stddev.get()/getDt();
-	float pn_v_sq = _pn_v_stddev.get()*_pn_v_stddev.get()/getDt();
-	Q(X_x, X_x) = pn_p_sq;
-	Q(X_y, X_y) = pn_p_sq;
-	Q(X_z, X_z) = pn_p_sq;
-	Q(X_vx, X_vx) = pn_v_sq;
-	Q(X_vy, X_vy) = pn_v_sq;
-	Q(X_vz, X_vz) = pn_v_sq;
+	float pn_p_var = _pn_p_noise_power.get()/getDt();
+	float pn_v_var = _pn_v_noise_power.get()/getDt();
+	Q(X_x, X_x) = pn_p_var;
+	Q(X_y, X_y) = pn_p_var;
+	Q(X_z, X_z) = pn_p_var;
+	Q(X_vx, X_vx) = pn_v_var;
+	Q(X_vy, X_vy) = pn_v_var;
+	Q(X_vz, X_vz) = pn_v_var;
 
 	// continuous time kalman filter prediction
 	math::Vector<n_x>  dx = (A*_x + B*_u)*getDt();

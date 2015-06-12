@@ -182,8 +182,8 @@ private:
 
 	BlockParamFloat  _lidar_z_stddev;
 
-	BlockParamFloat  _accel_xy_stddev;
-	BlockParamFloat  _accel_z_stddev;
+	BlockParamFloat  _accel_xy_noise_power;
+	BlockParamFloat  _accel_z_noise_power;
 
 	BlockParamFloat  _baro_stddev;
 
@@ -203,8 +203,8 @@ private:
 	BlockParamFloat  _vicon_p_stddev;
 
 	// process noise
-	BlockParamFloat  _pn_p_stddev;
-	BlockParamFloat  _pn_v_stddev;
+	BlockParamFloat  _pn_p_noise_power;
+	BlockParamFloat  _pn_v_noise_power;
 
 	// misc
 	struct pollfd _polls[3];

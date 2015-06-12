@@ -48,7 +48,7 @@ PARAM_DEFINE_FLOAT(LPE_SNR_Z, 0.2f);
 PARAM_DEFINE_FLOAT(LPE_LDR_Z, 0.03f);
 
 /**
- * Accelerometer xy noise power (variance*sampling rate)
+ * Accelerometer xy noise power (variance*sampling rate).
  *
  * @group Local Position Estimator
  * @unit (m/s^2)^2-s
@@ -58,7 +58,7 @@ PARAM_DEFINE_FLOAT(LPE_LDR_Z, 0.03f);
 PARAM_DEFINE_FLOAT(LPE_ACC_XY, 0.135f);
 
 /**
- * Accelerometer z noise power (variance*sampling rate)
+ * Accelerometer z noise power (variance*sampling rate).
  *
  * @group Local Position Estimator
  * @unit (m/s^2)^2-s
@@ -179,17 +179,17 @@ PARAM_DEFINE_INT32(LPE_NO_VISION, 0);
 PARAM_DEFINE_FLOAT(LPE_VIC_P, 0.05f);
 
 /**
- * Position propagation process noise.
+ * Position propagation process noise power (variance*sampling rate).
  *
  * @group Local Position Estimator
- * @unit m
+ * @unit (m/s)^2-s
  * @min 0
  * @max 1
  */
 PARAM_DEFINE_FLOAT(LPE_PN_P, 0.0f);
 
 /**
- * Velocity propagation process noise.
+ * Velocity propagation process noise power (variance*sampling rate).
  *
  * @group Local Position Estimator
  * @unit m/s
