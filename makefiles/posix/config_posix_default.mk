@@ -19,6 +19,7 @@ MODULES		+= modules/sensors
 MODULES	+= systemcmds/param
 MODULES += systemcmds/mixer
 MODULES += systemcmds/topic_listener
+MODULES	+= systemcmds/ver
 
 #
 # General system control
@@ -69,6 +70,7 @@ MODULES		+= platforms/posix/drivers/adcsim
 MODULES		+= platforms/posix/drivers/barosim
 MODULES		+= platforms/posix/drivers/tonealrmsim
 MODULES		+= platforms/posix/drivers/airspeedsim
+MODULES 	+= platforms/posix/drivers/gpssim
 
 #
 # Unit tests
@@ -78,3 +80,7 @@ MODULES		+= platforms/posix/drivers/airspeedsim
 #MODULES		+= platforms/posix/tests/hrt_test
 #MODULES		+= platforms/posix/tests/wqueue
 
+#
+# muorb fastrpc changes.
+#
+#MODULES		+= $(PX4_BASE)../muorb_krait

@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (C) 2012-2013 PX4 Development Team. All rights reserved.
+ *   Copyright (C) 2015 Mark Charlebois. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -31,40 +31,59 @@
  *
  ****************************************************************************/
 
-/**
- * @file navigation_capabilities.h
- *
- * Definition of navigation capabilities uORB topic.
- */
+//extern "C" {
 
-#ifndef TOPIC_NAVIGATION_CAPABILITIES_H_
-#define TOPIC_NAVIGATION_CAPABILITIES_H_
+void _Read_uleb( void )
+{
+}
 
-#include "../uORB.h"
-#include <stdint.h>
+void _Parse_fde_instr( void )
+{
+}
 
-/**
- * @addtogroup topics
- * @{
- */
+void _Parse_csd( void )
+{
+}
 
-/**
- * Airspeed
- */
-struct navigation_capabilities_s {
-	float turn_distance;		/**< the optimal distance to a waypoint to switch to the next */
+void _Locksyslock( void )
+{
+}
 
-	/* Landing parameters: see fw_pos_control_l1/landingslope.h */
-	float landing_horizontal_slope_displacement;
-	float landing_slope_angle_rad;
-	float landing_flare_length;
-};
+void _Unlocksyslock( void )
+{
+}
 
-/**
- * @}
- */
+void _Valbytes( void )
+{
+}
 
-/* register this as object request broker structure */
-ORB_DECLARE(navigation_capabilities);
+void _Get_eh_data( void )
+{
+}
 
-#endif
+void _Parse_lsda( void )
+{
+}
+
+void __cxa_guard_release( void )
+{
+}
+
+void _Read_enc_ptr( void )
+{
+}
+
+void _Read_sleb( void )
+{
+}
+
+void __cxa_guard_acquire( void )
+{
+}
+
+void __cxa_pure_virtual() 
+{ 
+   while (1); 
+}
+
+//}
