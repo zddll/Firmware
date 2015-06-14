@@ -695,18 +695,18 @@ void BlockLocalPositionEstimator::predict(bool canEstimateXY,
 
 	// input noise covariance matrix
 	math::Matrix<n_u, n_u> R;
-	R(U_ax, U_ax) = _accel_xy_noise_power.get()/getDt();
-	R(U_ay, U_ay) = _accel_xy_noise_power.get()/getDt();
-	R(U_az, U_az) = _accel_z_noise_power.get()/getDt();
+	R(U_ax, U_ax) = _accel_xy_noise_power.get();
+	R(U_ay, U_ay) = _accel_xy_noise_power.get();
+	R(U_az, U_az) = _accel_z_noise_power.get();
 
-	// process noise covariance atrix
+	// process noise covariance matrix
 	math::Matrix<n_x, n_x>  Q;
-	Q(X_x, X_x) = _pn_p_noise_power.get()/getDt();
-	Q(X_y, X_y) = _pn_p_noise_power.get()/getDt();
-	Q(X_z, X_z) = _pn_p_noise_power.get()/getDt();
-	Q(X_vx, X_vx) = _pn_v_noise_power.get()/getDt();
-	Q(X_vy, X_vy) = _pn_v_noise_power.get()/getDt();
-	Q(X_vz, X_vz) = _pn_v_noise_power.get()/getDt();
+	Q(X_x, X_x) = _pn_p_noise_power.get();
+	Q(X_y, X_y) = _pn_p_noise_power.get();
+	Q(X_z, X_z) = _pn_p_noise_power.get();
+	Q(X_vx, X_vx) = _pn_v_noise_power.get();
+	Q(X_vy, X_vy) = _pn_v_noise_power.get();
+	Q(X_vz, X_vz) = _pn_v_noise_power.get();
 
 	// continuous time kalman filter prediction
 	math::Vector<n_x>  dx = (A*_x + B*_u)*getDt();
