@@ -48,17 +48,17 @@ PARAM_DEFINE_FLOAT(LPE_SNR_Z, 0.2f);
 PARAM_DEFINE_FLOAT(LPE_LDR_Z, 0.03f);
 
 /**
- * Accelerometer xy noise power (variance*sampling rate).
+ * Accelerometer xy noise power (variance/sampling rate).
  *
  * @group Local Position Estimator
- * @unit (m/s^2)^2-s
+ * @unit (m/s^2)^2/s
  * @min 0.01
  * @max 2
  */
 PARAM_DEFINE_FLOAT(LPE_ACC_XY, 0.135f);
 
 /**
- * Accelerometer z noise power (variance*sampling rate).
+ * Accelerometer z noise power (variance/sampling rate).
  *
  * @group Local Position Estimator
  * @unit (m/s^2)^2-s
@@ -179,17 +179,17 @@ PARAM_DEFINE_INT32(LPE_NO_VIS, 0);
 PARAM_DEFINE_FLOAT(LPE_VIC_P, 0.05f);
 
 /**
- * Position propagation process noise power (variance*sampling rate).
+ * Position propagation process noise power (variance/sampling rate).
  *
  * @group Local Position Estimator
- * @unit (m/s)^2-s
+ * @unit (m/s)^2/s
  * @min 0
  * @max 1
  */
 PARAM_DEFINE_FLOAT(LPE_PN_P, 0.0f);
 
 /**
- * Velocity propagation process noise power (variance*sampling rate).
+ * Velocity propagation process noise power (variance/sampling rate).
  *
  * @group Local Position Estimator
  * @unit m/s
@@ -199,11 +199,11 @@ PARAM_DEFINE_FLOAT(LPE_PN_P, 0.0f);
 PARAM_DEFINE_FLOAT(LPE_PN_V, 0.0f);
 
 /**
- * Fault detection threshold in standard deviations
+ * Fault detection threshold, for chi-squared dist.
  *
  * @group Local Position Estimator
- * @unit stddev
+ * @unit
  * @min 3
- * @max 10
+ * @max 100
  */
-PARAM_DEFINE_FLOAT(LPE_BETA_MAX, 5.0f);
+PARAM_DEFINE_FLOAT(LPE_BETA_MAX, 30.0f);

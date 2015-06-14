@@ -92,6 +92,8 @@ typedef param_t px4_param_t;
  */
 #if defined(__PX4_NUTTX)
 
+#define PX4_ROOTFSDIR 
+
 /* XXX this is a hack to resolve conflicts with NuttX headers */
 #if !defined(__PX4_TESTS)
 #define isspace(c) \
@@ -123,6 +125,7 @@ typedef param_t px4_param_t;
 /* FIXME - Used to satisfy build */
 //STM DocID018909 Rev 8 Sect 39.1 (Unique device ID Register)
 #define UNIQUE_ID       0x1FFF7A10  
+#define STM32_SYSMEM_UID "SIMULATIONID"
 
 /* FIXME - Used to satisfy build */
 #define getreg32(a)    (*(volatile uint32_t *)(a))
@@ -135,6 +138,12 @@ __END_DECLS
 #define USEC2TICK(x) (((x)+(USEC_PER_TICK/2))/USEC_PER_TICK) 
 
 #define px4_statfs_buf_f_bavail_t unsigned long
+
+#if defined(__PX4_QURT)
+#define PX4_ROOTFSDIR 
+#else
+#define PX4_ROOTFSDIR "rootfs"
+#endif
 
 #endif
 
@@ -198,6 +207,10 @@ __END_DECLS
 #endif
 
 #if defined(__PX4_QURT)
+
+#define PX4_ROOTFSDIR 
+#define DEFAULT_PARAM_FILE "/fs/eeprom/parameters"
+
 #define SIOCDEVPRIVATE 999999
 
 // Missing math.h defines
@@ -210,7 +223,6 @@ __END_DECLS
 #define isinf(x) false
 #define fminf(x, y) ((x) > (y) ? y : x)
 #endif
-
 
 #endif
 
