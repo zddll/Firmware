@@ -166,7 +166,7 @@ PARAM_DEFINE_FLOAT(LPE_VIS_VZ, 1.0f);
  * @min 0
  * @max 1
  */
-PARAM_DEFINE_INT32(LPE_NO_VISION, 0);
+PARAM_DEFINE_INT32(LPE_NO_VIS, 0);
 
 /**
  * Vicon position standard deviation.

@@ -310,7 +310,7 @@ then
 			echo "[i] Faking GPS"
 			gps start -f
 		else
-			gps start
+			#gps start
 		fi
 	fi
 	unset GPS_FAKE

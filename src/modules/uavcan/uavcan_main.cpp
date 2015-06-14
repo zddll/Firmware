@@ -53,10 +53,6 @@
 #include <drivers/drv_pwm_output.h>
 
 #include "uavcan_main.hpp"
-#include <uavcan_posix/dynamic_node_id_server/file_event_tracer.hpp>
-#include <uavcan_posix/dynamic_node_id_server/file_storage_backend.hpp>
-
-#include <uavcan_posix/firmware_version_checker.hpp>
 
 //todo:The Inclusion of file_server_backend is killing
 // #include <sys/types.h> and leaving OK undefined
@@ -75,20 +71,12 @@
  * UavcanNode
  */
 UavcanNode *UavcanNode::_instance;
-uavcan::dynamic_node_id_server::CentralizedServer *UavcanNode::_server_instance;
-uavcan_posix::dynamic_node_id_server::FileEventTracer tracer;
-uavcan_posix::dynamic_node_id_server::FileStorageBackend storage_backend;
-uavcan_posix::FirmwareVersionChecker fw_version_checker;
 
 UavcanNode::UavcanNode(uavcan::ICanDriver &can_driver, uavcan::ISystemClock &system_clock) :
 	CDev("uavcan", UAVCAN_DEVICE_PATH),
 	_node(can_driver, system_clock),
 	_node_mutex(),
-	_esc_controller(_node),
-	_fileserver_backend(_node),
-	_node_info_retriever(_node),
-	_fw_upgrade_trigger(_node, fw_version_checker),
-	_fw_server(_node, _fileserver_backend)
+	_esc_controller(_node)
 {
 	_control_topics[0] = ORB_ID(actuator_controls_0);
 	_control_topics[1] = ORB_ID(actuator_controls_1);
@@ -154,7 +142,6 @@ UavcanNode::~UavcanNode()
 	perf_free(_perfcnt_node_spin_elapsed);
 	perf_free(_perfcnt_esc_mixer_output_elapsed);
 	perf_free(_perfcnt_esc_mixer_total_elapsed);
-	delete(_server_instance);
 
 }
 
@@ -303,74 +290,6 @@ int UavcanNode::init(uavcan::NodeID node_id)
 
 		warnx("sensor bridge '%s' init ok", br->get_name());
 		br = br->getSibling();
-	}
-
-
-	/* Initialize the fw version checker.
-	* giving it it's path
-	*/
-
-	ret = fw_version_checker.createFwPaths(UAVCAN_FIRMWARE_PATH);
-
-	if (ret < 0) {
-		return ret;
-	}
-
-
-	/* Start fw file server back */
-
-	ret = _fw_server.start();
-
-	if (ret < 0) {
-		return ret;
-	}
-
-	/* Initialize storage back end for the node allocator using UAVCAN_NODE_DB_PATH directory */
-
-	ret = storage_backend.init(UAVCAN_NODE_DB_PATH);
-
-	if (ret < 0) {
-		return ret;
-	}
-
-	/* Initialize trace in the UAVCAN_NODE_DB_PATH directory */
-
-	ret = tracer.init(UAVCAN_LOG_FILE);
-
-	if (ret < 0) {
-		return ret;
-	}
-
-	/* Create dynamic node id server for the Firmware updates directory */
-
-	_server_instance = new uavcan::dynamic_node_id_server::CentralizedServer(_node, storage_backend, tracer);
-
-	if (_server_instance == 0) {
-		return -ENOMEM;
-	}
-
-	/* Initialize the dynamic node id server  */
-	ret = _server_instance->init(_node.getNodeStatusProvider().getHardwareVersion().unique_id);
-
-	if (ret < 0) {
-		return ret;
-	}
-
-	/* Start node info retriever to fetch node info from new nodes */
-
-	ret = _node_info_retriever.start();
-
-	if (ret < 0) {
-		return ret;
-	}
-
-
-	/* Start the fw version checker   */
-
-	ret = _fw_upgrade_trigger.start(_node_info_retriever, fw_version_checker.getFirmwarePath());
-
-	if (ret < 0) {
-		return ret;
 	}
 
 	/*  Start the Node   */

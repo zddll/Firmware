@@ -319,9 +319,10 @@ void BlockLocalPositionEstimator::update() {
 		_P.identity();
 		_P *= 0.1;
 	}
-
+	
+	bool est_timeout = (hrt_absolute_time() - _time_last_xy > XY_SRC_TIMEOUT);
 	// do prediction
-	predict(canEstimateXY, canEstimateZ);
+	predict(!est_timeout, canEstimateZ);
 
 	// sensor corrections/ initializations
 	if (gpsUpdated) {
@@ -378,7 +379,6 @@ void BlockLocalPositionEstimator::update() {
 		else
 			correctVicon();
 	}
-	bool est_timeout = (hrt_absolute_time() - _time_last_xy > XY_SRC_TIMEOUT);
 	if (!est_timeout) {
 		// update all publications if possible
 		publishLocalPos(true, true);
