@@ -61,7 +61,7 @@ BlockLocalPositionEstimator::BlockLocalPositionEstimator() :
 	_gps_eph_max(this, "EPH_MAX"),
 	_vision_xy_stddev(this, "VIS_XY"),
 	_vision_z_stddev(this, "VIS_Z"),
-	_no_vision(this, "NO_VISION"),
+	_no_vision(NULL, "CBRK_NO_VISION"),
 	_beta_max(this, "BETA_MAX"),
 	_mocap_p_stddev(this, "VIC_P"),
 	_pn_p_noise_power(this, "PN_P"),
@@ -375,7 +375,7 @@ void BlockLocalPositionEstimator::update()
 		}
 	}
 
-	if (_no_vision.get() != CBRK_NO_VISION_KEY) { // check if no vision circuit breaker is set
+	if (_no_vision.get() == CBRK_NO_VISION_KEY) { // check if vision circuit breaker is set
 		if (visionUpdated) {
 			if (!_visionInitialized) {
 				initVision();

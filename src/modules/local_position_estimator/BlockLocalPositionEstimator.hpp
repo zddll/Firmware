@@ -222,6 +222,7 @@ private:
 	BlockParamFloat  _vision_xy_stddev;
 	BlockParamFloat  _vision_z_stddev;
 	BlockParamInt    _no_vision;
+
 	BlockParamFloat  _beta_max;
 
 	BlockParamFloat  _mocap_p_stddev;

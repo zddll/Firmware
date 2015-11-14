@@ -710,8 +710,8 @@ int position_estimator_inav_thread_main(int argc, char *argv[])
 			}
 
 
-			/* check no vision circuit breaker is set */
-			if (params.no_vision != CBRK_NO_VISION_KEY) {
+			/* check vision circuit breaker is set */
+			if (params.no_vision == CBRK_NO_VISION_KEY) {
 				/* vehicle vision position */
 				orb_check(vision_position_estimate_sub, &updated);
 

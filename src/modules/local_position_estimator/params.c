@@ -158,17 +158,6 @@ PARAM_DEFINE_FLOAT(LPE_VIS_XY, 0.5f);
 PARAM_DEFINE_FLOAT(LPE_VIS_Z, 0.5f);
 
 /**
- * Circuit breaker to disable vision input.
- *
- * Set to the appropriate key (328754) to disable vision input.
- *
- * @group Local Position Estimator
- * @min 0
- * @max 1
- */
-PARAM_DEFINE_INT32(LPE_NO_VISION, 0);
-
-/**
  * Vicon position standard deviation.
  *
  * @group Local Position Estimator

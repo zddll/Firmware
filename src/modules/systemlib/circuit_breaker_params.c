@@ -160,3 +160,16 @@ PARAM_DEFINE_INT32(CBRK_BUZZER, 0);
  * @group Circuit Breaker
  */
 PARAM_DEFINE_INT32(CBRK_USB_CHK, 0);
+
+/**
+ * Enable vision input
+ *
+ * Setting this parameter to 328754 will enable vision input.
+ *
+ * WARNING: ENABLING THIS CIRCUIT BREAKER IS AT OWN RISK
+ *
+ * @min 0
+ * @max 328754
+ * @group Circuit Breaker
+ */
+PARAM_DEFINE_INT32(CBRK_NO_VISION, 0);

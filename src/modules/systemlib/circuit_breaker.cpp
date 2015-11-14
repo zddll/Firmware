@@ -35,7 +35,7 @@
  * @file circuit_breaker.c
  *
  * Circuit breaker parameters.
- * Analog to real aviation circuit breakers these parameters
+ * Analogue to real aviation circuit breakers these parameters
  * allow to disable subsystems. They are not supported as standard
  * operation procedure and are only provided for development purposes.
  * To ensure they are not activated accidentally, the associated

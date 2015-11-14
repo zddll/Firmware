@@ -314,17 +314,6 @@ PARAM_DEFINE_FLOAT(INAV_FLOW_DIST_X, 0.0f);
 PARAM_DEFINE_FLOAT(INAV_FLOW_DIST_Y, 0.0f);
 
 /**
- * Disable vision input
- *
- * Set to the appropriate key (328754) to disable vision input.
- *
- * @min 0
- * @max 1
- * @group Position Estimator INAV
- */
-PARAM_DEFINE_INT32(CBRK_NO_VISION, 0);
-
-/**
  * INAV enabled
  *
  * If set to 1, use INAV for position estimation.
