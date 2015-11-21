@@ -105,6 +105,8 @@ protected:
 	void task_main_trampoline(int argc, char *argv[]);
 
 private:
+	static const int	_buflen = 11;
+	static const int	LIDAR_LITE_MAX_PWM_PERIOD = 30000;
 	work_s			_work;
 	ringbuffer::RingBuffer	*_reports;
 	int			_class_instance;
@@ -113,6 +115,11 @@ private:
 	struct pwm_input_s	_pwm;
 	orb_advert_t	        _distance_sensor_topic;
 	struct distance_sensor_s _range;
+	/* number of pulses received at intervals < LIDAR_LITE_MAX_PWM_PERIOD */
+	int			_valid_count;
+	/* circular buffer of pulse widths */
+	uint32_t	_pulse_buffer[_buflen];
+	int			_pbuf_index;
 
 	perf_counter_t	        _sample_perf;
 	perf_counter_t	        _read_errors;
