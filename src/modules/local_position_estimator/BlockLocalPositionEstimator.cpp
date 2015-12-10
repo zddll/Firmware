@@ -70,6 +70,9 @@ BlockLocalPositionEstimator::BlockLocalPositionEstimator() :
 	_pn_p_noise_power(this, "PN_P"),
 	_pn_v_noise_power(this, "PN_V"),
 	_pn_b_noise_power(this, "PN_B"),
+	_pn_g_noise_power(this, "PN_G"),
+	_pn_gv_noise_power(this, "PN_GV"),
+
 
 	// misc
 	_polls(),
@@ -127,6 +130,7 @@ BlockLocalPositionEstimator::BlockLocalPositionEstimator() :
 	// status
 	_canEstimateXY(false),
 	_canEstimateZ(false),
+	_canEstimateAGL(false),
 	_xyTimeout(false),
 
 	// faults
@@ -212,9 +216,10 @@ void BlockLocalPositionEstimator::update()
 	// auto-detect connected rangefinders while not armed
 	if (!_sub_armed.get().armed && (_sub_lidar == NULL || _sub_sonar == NULL)) {
 		for (int i = 0; i < ORB_MULTI_MAX_INSTANCES; i++) {
-			if(_distance_subs[i]->get().timestamp == 0) {	
+			if (_distance_subs[i]->get().timestamp == 0) {
 				continue; // ignore sensors with no data coming in
 			}
+
 			if (_distance_subs[i]->get().type == distance_sensor_s::MAV_DISTANCE_SENSOR_LASER &&
 			    _sub_lidar == NULL) {
 				_sub_lidar = _distance_subs[i];
@@ -286,6 +291,8 @@ void BlockLocalPositionEstimator::update()
 		(_flowInitialized && !_flowFault) ||
 		(_visionInitialized && !_visionTimeout && !_visionFault) ||
 		(_mocapInitialized && !_mocapTimeout && !_mocapFault);
+	_canEstimateAGL = (_lidarInitialized && !_lidarFault) ||
+			  (_sonarInitialized && !_sonarFault);
 
 	if (_canEstimateXY) {
 		_time_last_xy = hrt_absolute_time();
@@ -635,6 +642,14 @@ void BlockLocalPositionEstimator::initMocap()
 void BlockLocalPositionEstimator::publishLocalPos()
 {
 	// publish local position
+
+	uint64_t bottom_timestamp = 0;
+
+	if (_time_last_lidar != 0 || _time_last_sonar != 0) {
+		// use latest rangefinder timestamp
+		bottom_timestamp = (_time_last_lidar > _time_last_sonar) ? _time_last_lidar : _time_last_sonar;
+	}
+
 	if (isfinite(_x(X_x)) && isfinite(_x(X_y)) && isfinite(_x(X_z)) &&
 	    isfinite(_x(X_vx)) && isfinite(_x(X_vy))
 	    && isfinite(_x(X_vz))) {
@@ -656,11 +671,10 @@ void BlockLocalPositionEstimator::publishLocalPos()
 		_pub_lpos.get().ref_lat = _map_ref.lat_rad * 180 / M_PI;
 		_pub_lpos.get().ref_lon = _map_ref.lon_rad * 180 / M_PI;
 		_pub_lpos.get().ref_alt = _sub_home.get().alt;
-		// TODO, terrain alt
-		_pub_lpos.get().dist_bottom = -_x(X_z);
-		_pub_lpos.get().dist_bottom_rate = -_x(X_vz);
-		_pub_lpos.get().surface_bottom_timestamp = 0;
-		_pub_lpos.get().dist_bottom_valid = true;
+		_pub_lpos.get().dist_bottom = _x(X_gz);
+		_pub_lpos.get().dist_bottom_rate = _x(X_gvz);
+		_pub_lpos.get().surface_bottom_timestamp = bottom_timestamp;
+		_pub_lpos.get().dist_bottom_valid = _canEstimateAGL;
 		_pub_lpos.get().eph = sqrtf(_P(X_x, X_x) + _P(X_y, X_y));
 		_pub_lpos.get().epv = sqrtf(_P(X_z, X_z));
 		_pub_lpos.update();
@@ -719,8 +733,8 @@ void BlockLocalPositionEstimator::publishGlobalPos()
 		_pub_gpos.get().yaw = _sub_att.get().yaw;
 		_pub_gpos.get().eph = sqrtf(_P(X_x, X_x) + _P(X_y, X_y));
 		_pub_gpos.get().epv = sqrtf(_P(X_z, X_z));
-		_pub_gpos.get().terrain_alt = 0;
-		_pub_gpos.get().terrain_alt_valid = false;
+		_pub_gpos.get().terrain_alt = alt - _x(X_gz);
+		_pub_gpos.get().terrain_alt_valid = _canEstimateAGL;
 		_pub_gpos.get().dead_reckoning = !_canEstimateXY && !_xyTimeout;
 		_pub_gpos.get().pressure_alt = _sub_sensor.get().baro_alt_meter[0];
 		_pub_gpos.update();
@@ -750,6 +764,8 @@ void BlockLocalPositionEstimator::initP()
 	_P(X_bx, X_bx) = 1e-6;
 	_P(X_by, X_by) = 1e-6;
 	_P(X_bz, X_bz) = 1e-6;
+	_P(X_gz, X_gz) = 1;
+	_P(X_gvz, X_gvz) = 1;
 }
 
 void BlockLocalPositionEstimator::predict()
@@ -775,6 +791,7 @@ void BlockLocalPositionEstimator::predict()
 	A(X_x, X_vx) = 1;
 	A(X_y, X_vy) = 1;
 	A(X_z, X_vz) = 1;
+	A(X_gz, X_gvz) = 1;
 
 	// derivative of velocity is accelerometer acceleration
 	// (in input matrix) - bias (in body frame)
@@ -790,6 +807,10 @@ void BlockLocalPositionEstimator::predict()
 	A(X_vz, X_bx) = -R_att(2, 0);
 	A(X_vz, X_by) = -R_att(2, 1);
 	A(X_vz, X_bz) = -R_att(2, 2);
+
+	A(X_gvz, X_bx) = -R_att(2, 0);
+	A(X_gvz, X_by) = -R_att(2, 1);
+	A(X_gvz, X_bz) = -R_att(2, 2);
 
 	// input matrix
 	Matrix<float, n_x, n_u>  B; // input matrix
@@ -814,6 +835,8 @@ void BlockLocalPositionEstimator::predict()
 	Q(X_vx, X_vx) = _pn_v_noise_power.get();
 	Q(X_vy, X_vy) = _pn_v_noise_power.get();
 	Q(X_vz, X_vz) = _pn_v_noise_power.get();
+	Q(X_gz, X_gz) = _pn_g_noise_power.get();
+	Q(X_gvz, X_gvz) = _pn_gv_noise_power.get();
 
 	// technically, the noise is in the body frame,
 	// but the components are all the same, so
@@ -837,6 +860,11 @@ void BlockLocalPositionEstimator::predict()
 	if (!_canEstimateZ) {
 		dx(X_z) = 0;
 		dx(X_vz) = 0;
+	}
+
+	if (!_canEstimateAGL) {
+		dx(X_gz) = 0;
+		dx(X_gvz) = 0;
 	}
 
 	// propagate
@@ -875,7 +903,7 @@ void BlockLocalPositionEstimator::correctFlow()
 	float dt = (_sub_flow.get().timestamp - _time_last_flow) * 1.0e-6f ;
 	_time_last_flow = _sub_flow.get().timestamp;
 
-	float alpha = 0.2; // lowpass gyro bias
+	float alpha = 0.3; // The closer alpha is to 1.0, the faster the moving average updates
 
 	if (_sub_flow.get().integration_timespan > 0) {
 
@@ -899,11 +927,11 @@ void BlockLocalPositionEstimator::correctFlow()
 		flow_speed[0] = ((_sub_flow.get().pixel_flow_x_integral - _sub_flow.get().gyro_x_rate_integral) /
 				 (_sub_flow.get().integration_timespan / 1e6f)
 				 + _flowGyroBias[0] - yaw_comp[0]) *
-				-_x(X_z);		// TODO use terrain estimate here
+				_x(X_gz);
 		flow_speed[1] = ((_sub_flow.get().pixel_flow_y_integral - _sub_flow.get().gyro_y_rate_integral) /
 				 (_sub_flow.get().integration_timespan / 1e6f) -
 				 + _flowGyroBias[1] - yaw_comp[1]) *
-				-_x(X_z);		// TODO use terrain estimate here
+				_x(X_gz);
 
 	} else {
 		flow_speed[0] = 0;
@@ -1005,7 +1033,7 @@ void BlockLocalPositionEstimator::correctSonar()
 	// sonar measurement matrix and noise matrix
 	Matrix<float, n_y_sonar, n_x> C;
 	C.setZero();
-	C(Y_sonar_z, X_z) = -1;
+	C(Y_sonar_z, X_gz) = 1; // measured AGL altitude
 
 	// use parameter covariance unless sensor provides reasonable value
 	Matrix<float, n_y_sonar, n_y_sonar> R;
@@ -1124,8 +1152,7 @@ void BlockLocalPositionEstimator::correctLidar()
 
 	Matrix<float, n_y_lidar, n_x> C;
 	C.setZero();
-	C(Y_lidar_z, X_z) = -1; // measured altitude,
-	// negative down dir.
+	C(Y_lidar_z, X_gz) = 1; // measured AGL altitude
 
 	// use parameter covariance unless sensor provides reasonable value
 	Matrix<float, n_y_lidar, n_y_lidar> R;

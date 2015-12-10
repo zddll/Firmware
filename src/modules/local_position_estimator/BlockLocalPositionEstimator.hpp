@@ -86,22 +86,22 @@ class BlockLocalPositionEstimator : public control::SuperBlock
 // 	ax, ay, az (acceleration NED)
 //
 // states:
-// 	px, py, pz , ( position NED)
+// 	px, py, pz ( position NED)
 // 	vx, vy, vz ( vel NED),
-// 	bx, by, bz ( TODO accelerometer bias)
-// 	tz (TODO terrain altitude)
+// 	bx, by, bz ( accelerometer bias)
+// 	gz, gvz    (ground distance, ground velocity)
 //
 // measurements:
-//
-// 	sonar: pz (measured d*cos(phi)*cos(theta))
 //
 // 	baro: pz
 //
 // 	flow: vx, vy (flow is in body x, y frame)
 //
-// 	gps: px, py, pz, vx, vy, vz (flow is in body x, y frame)
+// 	sonar: gz (measured d*cos(phi)*cos(theta))
 //
-// 	lidar: px (actual measured d*cos(phi)*cos(theta))
+// 	lidar: gz (measured d*cos(phi)*cos(theta))
+//
+// 	gps: px, py, pz, vx, vy, vz (flow is in body x, y frame)
 //
 // 	vision: px, py, pz, vx, vy, vz
 //
@@ -118,7 +118,7 @@ private:
 	BlockLocalPositionEstimator operator=(const BlockLocalPositionEstimator &);
 
 	// constants
-	static const uint8_t n_x = 9;
+	static const uint8_t n_x = 11;
 	static const uint8_t n_u = 3; // 3 accelerations
 	static const uint8_t n_y_flow = 2;
 	static const uint8_t n_y_sonar = 1;
@@ -127,7 +127,7 @@ private:
 	static const uint8_t n_y_gps = 6;
 	static const uint8_t n_y_vision = 3;
 	static const uint8_t n_y_mocap = 3;
-	enum {X_x = 0, X_y, X_z, X_vx, X_vy, X_vz, X_bx, X_by, X_bz};
+	enum {X_x = 0, X_y, X_z, X_vx, X_vy, X_vz, X_bx, X_by, X_bz, X_gz, X_gvz};
 	enum {U_ax = 0, U_ay, U_az};
 	enum {Y_baro_z = 0};
 	enum {Y_lidar_z = 0};
@@ -235,6 +235,8 @@ private:
 	BlockParamFloat  _pn_p_noise_power;
 	BlockParamFloat  _pn_v_noise_power;
 	BlockParamFloat  _pn_b_noise_power;
+	BlockParamFloat  _pn_g_noise_power;
+	BlockParamFloat  _pn_gv_noise_power;
 
 	// misc
 	struct pollfd _polls[3];
@@ -284,13 +286,14 @@ private:
 	float _flowGyroBias[3];
 	float _flowMeanQual;
 
-	// referene lat/lon
+	// reference lat/lon
 	double _gpsLatHome;
 	double _gpsLonHome;
 
 	// status
 	bool _canEstimateXY;
 	bool _canEstimateZ;
+	bool _canEstimateAGL;
 	bool _xyTimeout;
 
 	// sensor faults
