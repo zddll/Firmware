@@ -156,6 +156,9 @@ posix_sitl_lpe:
 
 posix_sitl_ekf2:
 	$(call cmake-build,$@)
+	
+posix_sitl_cubesat:
+	$(call cmake-build,$@)
 
 ros_sitl_default:
 	$(call cmake-build,$@)
@@ -199,7 +202,7 @@ clean:
 # targets handled by cmake
 cmake_targets = test upload package package_source debug debug_tui debug_ddd debug_io debug_io_tui debug_io_ddd check_weak \
 	run_cmake_config config gazebo gazebo_gdb gazebo_lldb jmavsim \
-	jmavsim_gdb jmavsim_lldb gazebo_gdb_iris gazebo_lldb_tailsitter gazebo_iris gazebo_tailsitter
+	jmavsim_gdb jmavsim_lldb gazebo_gdb_iris gazebo_lldb_tailsitter gazebo_iris gazebo_nanosat gazebo_tailsitter
 $(foreach targ,$(cmake_targets),$(eval $(call cmake-targ,$(targ))))
 
 .PHONY: clean
