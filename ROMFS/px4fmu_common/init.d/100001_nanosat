@@ -1,0 +1,12 @@
+#!nsh
+#
+# @name NanoSat
+#
+# @type CubeSat
+#
+
+sh /etc/init.d/rc.sat_defaults
+
+#choose a mixer TODO
+
+#set MIXER IO_pass

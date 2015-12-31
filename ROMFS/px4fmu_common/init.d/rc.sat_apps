@@ -1,0 +1,8 @@
+#!nsh
+#
+# Standard apps for cubesat
+# att estimator, att control.
+#
+
+attitude_estimator_q start
+sat_att_control start

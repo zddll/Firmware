@@ -142,6 +142,12 @@ px4fmu-v2_ekf2:
 px4fmu-v2_lpe:
 	$(call cmake-build,nuttx_px4fmu-v2_lpe)
 
+px4fmu-v2_cubesat:
+	$(call cmake-build,nuttx_px4fmu-v2_cubesat)
+
+nuttx_sim_simple:
+	$(call cmake-build,$@)
+
 posix_sitl_default:
 	$(call cmake-build,$@)
 

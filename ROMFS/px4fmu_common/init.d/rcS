@@ -646,7 +646,7 @@ then
 			sh /etc/init.d/rc.fw_apps
 		fi
 	fi
-
+	
 	#
 	# Multicopters setup
 	#
@@ -777,6 +777,31 @@ then
 		fi
 
 		param set MAV_TYPE 10
+	fi
+	
+	#
+	# CubeSat setup
+	#
+	if [ $VEHICLE_TYPE == sat ]
+	then
+		echo "[i] CUBESAT"
+
+		if [ $MIXER == none ]
+		then
+			echo "Mixer undefined"
+		fi
+		
+		# Hack for now
+		set MAV_TYPE 2
+		
+		# Load mixer and configure outputs
+		sh /etc/init.d/rc.interface
+
+		# Start standard multicopter apps
+		if [ $LOAD_DAPPS == yes ]
+		then
+			sh /etc/init.d/rc.sat_apps
+		fi
 	fi
 
 	unset MIXER
