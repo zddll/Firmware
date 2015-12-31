@@ -49,6 +49,7 @@ set(config_module_list
 	#
 	modules/commander
 	modules/mavlink
+	modules/uavcan
 
 	#
 	# Estimation modules
@@ -81,6 +82,7 @@ set(config_module_list
 	lib/mathlib
 	lib/mathlib/math/filter
 	lib/external_lgpl
+	lib/ecl
 	lib/geo
 	lib/geo_lookup
 	lib/conversion
