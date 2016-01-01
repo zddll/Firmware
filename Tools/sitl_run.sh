@@ -3,7 +3,7 @@
 rc_script=$1
 debugger=$2
 program=$3
-model=$4
+model=nanosat
 build_path=$5
 curr_dir=`pwd`
 
@@ -74,7 +74,7 @@ then
 		cd Tools/sitl_gazebo/Build
 		cmake -Wno-dev ..
 		make -j4
-		gzserver --verbose ../worlds/${model}.world &
+		gzserver --verbose ../worlds/nanosat.world &
 		SIM_PID=`echo $!`
 		gzclient --verbose &
 		GUI_PID=`echo $!`
