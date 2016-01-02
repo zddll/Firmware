@@ -54,7 +54,7 @@
  * @max 1.0
  * @group Satellite Attitude Control
  */
-PARAM_DEFINE_FLOAT(SAT_PR_P, 0.08f);
+PARAM_DEFINE_FLOAT(SAT_PR_P, 0.005f);
 
 /**
  * Pitch rate integrator gain.
@@ -62,11 +62,11 @@ PARAM_DEFINE_FLOAT(SAT_PR_P, 0.08f);
  * This gain defines how much control response will result out of a steady
  * state error. It trims any constant error.
  *
- * @min 0.005
+ * @min 0.0
  * @max 0.5
  * @group Satellite Attitude Control
  */
-PARAM_DEFINE_FLOAT(SAT_PR_I, 0.02f);
+PARAM_DEFINE_FLOAT(SAT_PR_I, 0.0f);
 
 /**
  * Roll rate proportional Gain
@@ -78,7 +78,7 @@ PARAM_DEFINE_FLOAT(SAT_PR_I, 0.02f);
  * @max 1.0
  * @group Satellite Attitude Control
  */
-PARAM_DEFINE_FLOAT(SAT_RR_P, 0.05f);
+PARAM_DEFINE_FLOAT(SAT_RR_P, 0.005f);
 
 /**
  * Roll rate integrator Gain
@@ -86,11 +86,11 @@ PARAM_DEFINE_FLOAT(SAT_RR_P, 0.05f);
  * This gain defines how much control response will result out of a steady
  * state error. It trims any constant error.
  *
- * @min 0.005
+ * @min 0.0
  * @max 0.2
  * @group Satellite Attitude Control
  */
-PARAM_DEFINE_FLOAT(SAT_RR_I, 0.01f);
+PARAM_DEFINE_FLOAT(SAT_RR_I, 0.0f);
 
 /**
  * Yaw rate proportional gain
@@ -102,7 +102,7 @@ PARAM_DEFINE_FLOAT(SAT_RR_I, 0.01f);
  * @max 1.0
  * @group Satellite Attitude Control
  */
-PARAM_DEFINE_FLOAT(SAT_YR_P, 0.05f);
+PARAM_DEFINE_FLOAT(SAT_YR_P, 0.005f);
 
 /**
  * Yaw rate integrator gain

@@ -2,7 +2,7 @@ uorb start
 simulator start -s
 param load
 param set MAV_TYPE 2
-param set SYS_AUTOSTART 4010
+param set SYS_AUTOSTART 100001
 param set SYS_RESTART_TYPE 2
 dataman start
 param set CAL_GYRO0_ID 2293768
@@ -32,6 +32,8 @@ sleep 1
 sensors start
 commander start
 
+param set COM_RC_IN_MODE 1
+
 attitude_estimator_q start
 sat_att_control start
 
@@ -44,5 +46,7 @@ mavlink stream -r 80 -s ATTITUDE -u 14556
 mavlink stream -r 80 -s ATTITUDE_TARGET -u 14556
 mavlink stream -r 20 -s RC_CHANNELS -u 14556
 mavlink stream -r 250 -s HIGHRES_IMU -u 14556
+mavlink stream -r 250 -s ACTUATOR_CONTROL_TARGET0 -u 14556
+
 mavlink boot_complete
 sdlog2 start -r 100 -e -t -a
