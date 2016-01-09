@@ -79,7 +79,7 @@ void Simulator::pack_actuator_message(mavlink_hil_controls_t &actuator_msg)
 	const float pwm_center = (PWM_DEFAULT_MAX + PWM_DEFAULT_MIN) / 2;
 
 	// for now we only support quadrotors
-	unsigned n = 4;
+	unsigned n = 0;	// HACK for cubesat
 
 	if (_vehicle_status.is_rotary_wing || _vehicle_status.is_vtol) {
 		for (unsigned i = 0; i < 8; i++) {
