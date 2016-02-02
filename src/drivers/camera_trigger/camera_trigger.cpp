@@ -373,7 +373,6 @@ CameraTrigger::cycle_trampoline(void *arg)
 		if (pos.xy_valid) {
 
 			if (updated && trig->_mode == 4) {
-
 				// Check update from command
 				struct vehicle_command_s cmd;
 				orb_copy(ORB_ID(vehicle_command), trig->_vcommand_sub, &cmd);
@@ -384,6 +383,13 @@ CameraTrigger::cycle_trampoline(void *arg)
 					trig->_trigger_enabled = cmd.param1 > 0.0f;
 					trig->_distance = cmd.param1;
 				}
+			} else if (cmd.param1 >= 1.0f) {
+				// reset sequence
+				trig->_trigger_seq = 0;
+				trig->control(true);
+				// while the trigger is active there is no
+				// need to poll at a very high rate
+				poll_interval_usec = 100000;
 			}
 
 			if (trig->_trigger_enabled || trig->_mode < 4) {
