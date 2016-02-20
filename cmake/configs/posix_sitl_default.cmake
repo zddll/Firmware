@@ -50,6 +50,7 @@ set(config_module_list
 	modules/sdlog2
 	modules/commander
 	modules/controllib
+	modules/optical_flow
 	lib/mathlib
 	lib/mathlib/math/filter
 	lib/conversion
