@@ -31,9 +31,11 @@ else()
 		apps.h
 		)
 	if (NOT APPLE)
+		find_package( OpenCV REQUIRED )
 		target_link_libraries(mainapp
 			-Wl,--start-group
 			${module_libraries}
+			${OpenCV_LIBS}
 			df_driver_framework
 			${df_driver_libs}
 			pthread m rt
