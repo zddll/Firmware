@@ -115,7 +115,6 @@ private:
 	// KLT algorithm
 	cv::Mat 				_image_prev;
 	cv::Mat					_image_curr;
-	cv::TermCriteria 			_term_crit;
 	std::vector<cv::Point2f> 		_features_prev;
 	std::vector<cv::Point2f> 		_features_curr;
 	std::vector<uint8_t> 			_features_tracked;
@@ -125,7 +124,7 @@ private:
 	float 					_angular_flow_x;
 	float					_angular_flow_y;
 
-	cv::VideoCapture _imagesrc;
+	cv::VideoCapture 			_imagesrc;
 
 	void		task_main();
 
@@ -158,9 +157,8 @@ OpticalFlow::OpticalFlow() :
 	_main_task(-1),
 	_mavlink_fd(-1),
 	_frame_seq(0),
-	_image_prev(),
-	_image_curr(),
-	_term_crit(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 30, 0.01),
+	_image_prev(cv::Mat(640, 480, CV_8UC3)),
+	_image_curr(cv::Mat(640, 480, CV_8UC3)),
 	_features_prev(),
 	_features_curr(),
 	_features_tracked(),
@@ -246,36 +244,37 @@ OpticalFlow::task_main()
 	unsigned int _frame_seq = 0;
 
 	// Make these params TODO
-	int numPoints = 50;
-	float threshold = 1.0;
-	float focal_length = 16.0;
+	int numPoints = 200;
+	float focal_length = 0.06f;
 
 	// Get initial image frames
 	_imagesrc >> _image_prev;
 	_imagesrc >> _image_curr;
-
+	
+	// Convert to greyscale
+	cvtColor(_image_prev, _image_prev, CV_RGB2GRAY);
+	cvtColor(_image_curr, _image_curr, CV_RGB2GRAY);
+	
+	warnx("Got first frames");
+	
 	// Get initial features
 	std::unique_ptr<std::vector<cv::Point2f>> initialPoints = extract_features(_image_prev, cv::Mat() , numPoints);
-
+	
 	for (auto pt : *initialPoints) {
 		_features_prev.push_back(pt);
 	}
-
+	
 	while (!_task_should_exit && _image_curr.data != NULL) {
-
-		//full_loop_timer.start();
-		//tracker_timer.start();
-
-		cv::calcOpticalFlowPyrLK(_image_prev, _image_curr, _features_prev, _features_curr, _features_tracked, _error,
-					 cv::Size(31,
-						  31), 3, _term_crit,
-					 cv::OPTFLOW_LK_GET_MIN_EIGENVALS, threshold);
-
-		//tracker_timer.stop();
-
-		//if(pm_on) {
-		//	point_management_timer.start();
-		//}
+		
+		if (_features_prev.size() != 0) {
+			cv::calcOpticalFlowPyrLK(_image_prev, _image_curr, _features_prev, _features_curr, _features_tracked, _error);
+		} else {
+			// retry initialisation
+			std::unique_ptr<std::vector<cv::Point2f>> initialPoints = extract_features(_image_curr, cv::Mat() , numPoints);
+			for (auto pt : *initialPoints) {
+				_features_prev.push_back(pt);
+			}
+		}
 
 		// Compute optical flow
 		float pixel_flow_x_integral = 0.0f;
@@ -300,54 +299,34 @@ OpticalFlow::task_main()
 		_angular_flow_x = atan2(pixel_flow_x_integral / counter, focal_length);
 		_angular_flow_y = atan2(pixel_flow_y_integral / counter, focal_length);
 
-		if (_features_curr.size() == 0) { break; }
-
 		_features_prev = _features_curr;
 		_image_prev = _image_curr;
 
-		// Point optimizer
+		// Point optimizer 
 		_new_points = optimize_points(_image_curr, _features_curr, numPoints);
-
-		int num_points_added = 0;
 
 		if (_new_points != NULL) {
 			for (auto pt : *_new_points) {
 				_features_prev.push_back(pt);
 			}
-
-			num_points_added = _new_points->size();
 			_new_points->clear();
 		}
 
-		warnx("added %i pts", num_points_added);
-
-		//point_management_timer.stop();
-
-		//full_loop_timer.stop();
-
+		// TODO overlay algorithm performance on image
+		
 		// Display image with points
-		//imageToBGR(_image_curr);
-
+		cvtColor(_image_curr, _image_curr, CV_GRAY2BGR);
 		for (auto pt : _features_curr) {
 			cv::circle(_image_curr, pt, 1, cv::Scalar(0, 255, 0), 2, 8, 0);
 		}
-
 		cv::imshow("Flow tracking", _image_curr);
 		cv::waitKey(10);
 
-		// TODO overlay algorithm performance on image
-
 		// next image frame
 		_imagesrc >> _image_curr;
+		cvtColor(_image_curr, _image_curr, CV_RGB2GRAY);
 
 		_frame_seq++;
-
-		//const unsigned sleeptime_us = 9500;
-
-		// TODO sleep here?
-
-		//hrt_abstime last_run = hrt_absolute_time();
-		//float dt_runs = sleeptime_us / 1e6f;
 
 	}
 
@@ -361,13 +340,12 @@ OpticalFlow::task_main()
 std::unique_ptr<std::vector<cv::Point2f>>
 				       OpticalFlow::extract_features(const cv::Mat &inputImage, const cv::Mat &mask, int numPoints)
 {
-	//if (numPoints < 0) { numPoints = maxPoints; }
 
 	std::vector<cv::KeyPoint> kPoints;
 	std::unique_ptr<std::vector<cv::Point2f>> points(new std::vector<cv::Point2f>);
 
 	cv::FAST(inputImage, kPoints, FAST_THRESHOLD, true);
-
+	
 	// Sort the keypoints by their "strength" (response)
 	std::sort(kPoints.begin(), kPoints.end(), [](const cv::KeyPoint & kp1, const cv::KeyPoint & kp2) { return kp1.response > kp2.response; });
 
@@ -376,7 +354,7 @@ std::unique_ptr<std::vector<cv::Point2f>>
 
 	if (!mask.empty()) {
 		while (points->size() < (unsigned int)numPoints && (unsigned int)index < kPoints.size()) {
-			if (mask.at<float>(kPoints[index].pt.x, kPoints[index].pt.y) > 0) { // check TODO was !=
+			if (mask.at<float>(kPoints[index].pt.x, kPoints[index].pt.y) > 0) {
 				points->push_back(kPoints[index].pt);
 			}
 
