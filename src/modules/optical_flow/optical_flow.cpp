@@ -68,10 +68,6 @@
 #include <string>
 #include <vector>
 
-
-#define FAST_THRESHOLD 40
-#define MASK_KEEPOUT_SIZE 5
-
 /**
  * optical_flow app start / stop handling function
  *
@@ -111,20 +107,31 @@ private:
 
 
 	unsigned int 				_frame_seq;
+	uint64_t 				_frame_stamp;
+	uint64_t 				_integration_time;
 
-	// KLT algorithm
+	bool					_visualise_tracking;
+
+	// Optical flow algorithm
+	int					_max_features;
+	int					_mask_window_size;
+	float					_FAST_theshold;
 	cv::Mat 				_image_prev;
 	cv::Mat					_image_curr;
 	std::vector<cv::Point2f> 		_features_prev;
 	std::vector<cv::Point2f> 		_features_curr;
 	std::vector<uint8_t> 			_features_tracked;
 	std::vector<float> 			_error;
+	std::unique_ptr<std::vector<cv::Point2f>> _initial_points;
 	std::unique_ptr<std::vector<cv::Point2f>> _new_points;
 
+	float 					_focal_length;
 	float 					_angular_flow_x;
 	float					_angular_flow_y;
 
 	cv::VideoCapture 			_imagesrc;
+
+	orb_advert_t				_flow_pub;
 
 	void		task_main();
 
@@ -133,12 +140,15 @@ private:
 	 */
 	void		publish_flow();
 
+	void		init_tracker();
+
+	void		run_tracker();
 
 	std::unique_ptr<std::vector<cv::Point2f>> extract_features(const cv::Mat &inputImage, const cv::Mat &mask,
-					       int numPoints);
+					       int num_features);
 
 	std::unique_ptr<std::vector<cv::Point2f>> optimize_points(const cv::Mat &image, std::vector<cv::Point2f> &currentPoints,
-					       int numPoints);
+					       int num_features);
 
 	/**
 	 * Shim for calling task_main from task_create.
@@ -157,16 +167,25 @@ OpticalFlow::OpticalFlow() :
 	_main_task(-1),
 	_mavlink_fd(-1),
 	_frame_seq(0),
+	_frame_stamp(0),
+	_integration_time(0),
+	_visualise_tracking(true),
+	_max_features(200),
+	_mask_window_size(5),
+	_FAST_theshold(40),
 	_image_prev(cv::Mat(640, 480, CV_8UC3)),
 	_image_curr(cv::Mat(640, 480, CV_8UC3)),
 	_features_prev(),
 	_features_curr(),
 	_features_tracked(),
 	_error(),
+	_initial_points(),
 	_new_points(),
+	_focal_length(1.0f),
 	_angular_flow_x(0.0f),
 	_angular_flow_y(0.0f),
-	_imagesrc(0)
+	_imagesrc(0),
+	_flow_pub(nullptr)
 {
 }
 
@@ -220,11 +239,23 @@ OpticalFlow::start()
 void
 OpticalFlow::status()
 {
+
 }
 
 void
 OpticalFlow::publish_flow()
 {
+
+	struct optical_flow_s flow = {};
+
+	flow.timestamp = _frame_stamp;
+	flow.pixel_flow_x_integral = _angular_flow_x;
+	flow.pixel_flow_y_integral = _angular_flow_y;
+	flow.integration_timespan = _integration_time;
+	flow.quality = _features_curr.size() / _max_features * 255;
+
+	int flow_inst = 1;
+	orb_publish_auto(ORB_ID(optical_flow), &_flow_pub, &flow, &flow_inst, ORB_PRIO_DEFAULT);
 
 }
 
@@ -241,93 +272,10 @@ OpticalFlow::task_main()
 	//memset(&update, 0, sizeof(update));
 	//int parameter_update_sub = orb_subscribe(ORB_ID(parameter_update));
 
-	unsigned int _frame_seq = 0;
+	init_tracker();
 
-	// Make these params TODO
-	int numPoints = 200;
-	float focal_length = 0.06f;
-
-	// Get initial image frames
-	_imagesrc >> _image_prev;
-	_imagesrc >> _image_curr;
-	
-	// Convert to greyscale
-	cvtColor(_image_prev, _image_prev, CV_RGB2GRAY);
-	cvtColor(_image_curr, _image_curr, CV_RGB2GRAY);
-	
-	warnx("Got first frames");
-	
-	// Get initial features
-	std::unique_ptr<std::vector<cv::Point2f>> initialPoints = extract_features(_image_prev, cv::Mat() , numPoints);
-	
-	for (auto pt : *initialPoints) {
-		_features_prev.push_back(pt);
-	}
-	
 	while (!_task_should_exit && _image_curr.data != NULL) {
-		
-		if (_features_prev.size() != 0) {
-			cv::calcOpticalFlowPyrLK(_image_prev, _image_curr, _features_prev, _features_curr, _features_tracked, _error);
-		} else {
-			// retry initialisation
-			std::unique_ptr<std::vector<cv::Point2f>> initialPoints = extract_features(_image_curr, cv::Mat() , numPoints);
-			for (auto pt : *initialPoints) {
-				_features_prev.push_back(pt);
-			}
-		}
-
-		// Compute optical flow
-		float pixel_flow_x_integral = 0.0f;
-		float pixel_flow_y_integral = 0.0f;
-
-		int counter = 0;
-
-		for (unsigned int pt = 0; pt < _features_tracked.size(); pt++) {
-			if (_features_tracked[pt] != 0) {
-				for (int i = 0; i < _features_curr.size(); i++) {
-					pixel_flow_x_integral += _features_curr[i].x - _features_prev[i].x;
-					pixel_flow_y_integral += _features_curr[i].y - _features_prev[i].y;
-					counter++;
-				}
-
-			} else {
-				// delete untracked points
-				_features_curr.erase(_features_curr.begin() + pt);
-			}
-		}
-
-		_angular_flow_x = atan2(pixel_flow_x_integral / counter, focal_length);
-		_angular_flow_y = atan2(pixel_flow_y_integral / counter, focal_length);
-
-		_features_prev = _features_curr;
-		_image_prev = _image_curr;
-
-		// Point optimizer 
-		_new_points = optimize_points(_image_curr, _features_curr, numPoints);
-
-		if (_new_points != NULL) {
-			for (auto pt : *_new_points) {
-				_features_prev.push_back(pt);
-			}
-			_new_points->clear();
-		}
-
-		// TODO overlay algorithm performance on image
-		
-		// Display image with points
-		cvtColor(_image_curr, _image_curr, CV_GRAY2BGR);
-		for (auto pt : _features_curr) {
-			cv::circle(_image_curr, pt, 1, cv::Scalar(0, 255, 0), 2, 8, 0);
-		}
-		cv::imshow("Flow tracking", _image_curr);
-		cv::waitKey(10);
-
-		// next image frame
-		_imagesrc >> _image_curr;
-		cvtColor(_image_curr, _image_curr, CV_RGB2GRAY);
-
-		_frame_seq++;
-
+		run_tracker();
 	}
 
 	warnx("exiting.");
@@ -336,34 +284,133 @@ OpticalFlow::task_main()
 	_exit(0);
 }
 
+void
+OpticalFlow::init_tracker()
+{
+	// Get initial image frames
+	_frame_stamp = hrt_absolute_time();
+	_imagesrc >> _image_prev;
+	_imagesrc >> _image_curr;
+
+	// Convert to greyscale
+	cvtColor(_image_prev, _image_prev, CV_RGB2GRAY);
+	cvtColor(_image_curr, _image_curr, CV_RGB2GRAY);
+
+	// Get initial features
+	_initial_points = extract_features(_image_prev, cv::Mat() , _max_features);
+
+	if (_initial_points != NULL) {
+		for (auto pt : *_initial_points) {
+			_features_prev.push_back(pt);
+		}
+	} 
+}
+
+void
+OpticalFlow::run_tracker()
+{
+	// Run KLT algorithm
+	cv::calcOpticalFlowPyrLK(_image_prev, _image_curr, _features_prev, _features_curr, _features_tracked, _error);
+
+	// Compute optical flow
+	float pixel_flow_x_integral = 0.0f;
+	float pixel_flow_y_integral = 0.0f;
+
+	int counter = 0;
+
+	for (unsigned int pt = 0; pt < _features_tracked.size(); pt++) {
+		if (_features_tracked[pt] != 0) {
+			for (int i = 0; i < _features_curr.size(); i++) {
+				pixel_flow_x_integral += _features_curr[i].x - _features_prev[i].x;
+				pixel_flow_y_integral += _features_curr[i].y - _features_prev[i].y;
+				counter++;
+			}
+
+		} else {
+			// Delete untracked points
+			_features_curr.erase(_features_curr.begin() + pt);
+		}
+	}
+
+	if (_features_curr.empty()) {
+		// Lost tracking, start over
+		init_tracker();
+		return;
+	}
+
+	// Calculate flow rates
+	_angular_flow_x = atan2(pixel_flow_x_integral / counter, _focal_length);
+	_angular_flow_y = atan2(pixel_flow_y_integral / counter, _focal_length);
+
+	_integration_time = hrt_absolute_time() - _frame_stamp;
+
+	// Publish estimates
+	publish_flow();
+
+	_features_prev = _features_curr;
+	_image_prev = _image_curr;
+
+	// Point optimizer
+	_new_points = optimize_points(_image_curr, _features_curr, _max_features);
+
+	if (_new_points != NULL) {
+		for (auto pt : *_new_points) {
+			_features_prev.push_back(pt);
+		}
+
+		_new_points->clear();
+	}
+	
+	// Display current image with points
+	if (_visualise_tracking) {
+		cvtColor(_image_curr, _image_curr, CV_GRAY2BGR);
+
+		for (auto pt : _features_curr) {
+			cv::circle(_image_curr, pt, 1, cv::Scalar(0, 255, 0), 2, 8, 0);
+		}
+
+		// TODO overlay algorithm performance on image
+		cv::imshow("Flow tracking", _image_curr);
+		cv::waitKey(10);
+	}
+
+	// next image frame
+	_frame_stamp = hrt_absolute_time();
+
+	_imagesrc >> _image_curr;
+	cvtColor(_image_curr, _image_curr, CV_RGB2GRAY);
+
+	_frame_seq++;
+
+}
 
 std::unique_ptr<std::vector<cv::Point2f>>
-				       OpticalFlow::extract_features(const cv::Mat &inputImage, const cv::Mat &mask, int numPoints)
+				       OpticalFlow::extract_features(const cv::Mat &input_image, const cv::Mat &mask, int num_features)
 {
 
-	std::vector<cv::KeyPoint> kPoints;
+	std::vector<cv::KeyPoint> keypoints;
 	std::unique_ptr<std::vector<cv::Point2f>> points(new std::vector<cv::Point2f>);
 
-	cv::FAST(inputImage, kPoints, FAST_THRESHOLD, true);
-	
+	cv::FAST(input_image, keypoints, _FAST_theshold, true);
+
 	// Sort the keypoints by their "strength" (response)
-	std::sort(kPoints.begin(), kPoints.end(), [](const cv::KeyPoint & kp1, const cv::KeyPoint & kp2) { return kp1.response > kp2.response; });
+	std::sort(keypoints.begin(), keypoints.end(), [](const cv::KeyPoint & kp1, const cv::KeyPoint & kp2) { return kp1.response > kp2.response; });
 
 	// Copy the best points to the vector of new points, checking them against the mask.
 	unsigned int index = 0;
 
-	if (!mask.empty()) {
-		while (points->size() < (unsigned int)numPoints && (unsigned int)index < kPoints.size()) {
-			if (mask.at<float>(kPoints[index].pt.x, kPoints[index].pt.y) > 0) {
-				points->push_back(kPoints[index].pt);
+	if (!mask.empty() && !keypoints.empty()) {
+		while (points->size() < (unsigned int)num_features && (unsigned int)index < keypoints.size()) {
+			if (mask.at<float>(keypoints[index].pt.x, keypoints[index].pt.y) > 0) {
+				points->push_back(keypoints[index].pt);
 			}
 
 			index++;
 		}
 
-	} else {
-		while (points->size() < (unsigned int)numPoints) {
-			points->push_back(kPoints[index].pt);
+	} else if (!keypoints.empty()) {
+		while (points->size() < (unsigned int)num_features) {
+			points->push_back(keypoints[index].pt);
 			index++;
 		}
 	}
@@ -372,25 +419,25 @@ std::unique_ptr<std::vector<cv::Point2f>>
 }
 
 std::unique_ptr<std::vector<cv::Point2f>>
-				       OpticalFlow::optimize_points(const cv::Mat &image, std::vector<cv::Point2f> &currentPoints, int numPoints)
+				       OpticalFlow::optimize_points(const cv::Mat &image, std::vector<cv::Point2f> &current_points, int num_features)
 {
-	std::unique_ptr<std::vector<cv::Point2f>> _new_points;
+	std::unique_ptr<std::vector<cv::Point2f>> new_points;
 
-	if (currentPoints.size() < (unsigned int)numPoints) {
+	if (current_points.size() < (unsigned int)num_features) {
 		// Construct mask
-		cv::Point2f halfDiagonal(MASK_KEEPOUT_SIZE, MASK_KEEPOUT_SIZE);
+		cv::Point2f half_diagonal(_mask_window_size, _mask_window_size);
 		cv::Mat mask(image.size(), image.type(), cv::Scalar(255));
 
-		for (auto pt : currentPoints) {
-			cv::rectangle(mask, (pt - halfDiagonal), (pt + halfDiagonal), cv::Scalar(0), -1, 8, 0);
+		for (auto pt : current_points) {
+			cv::rectangle(mask, (pt - half_diagonal), (pt + half_diagonal), cv::Scalar(0), -1, 8, 0);
 		}
 
 		// Get vector of new points from extractor
-		int newFeaturesRequired = numPoints - currentPoints.size();
-		_new_points = extract_features(image, mask, newFeaturesRequired);
+		int new_fts_required = num_features - current_points.size();
+		new_points = extract_features(image, mask, new_fts_required);
 	}
 
-	return _new_points;
+	return new_points;
 }
 
 
