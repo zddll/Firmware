@@ -754,6 +754,7 @@ bool AttitudeEstimatorQ::update(float dt)
 
 	if (_ext_hdg_mode > 0 && _ext_hdg_good) {
 		if (_ext_hdg_mode == 1) {
+			//_vision_hdg = Vector<3>(0.0f, 0.0f, 0.0f);
 			// Vision heading correction
 			// Project heading to global frame and extract XY component
 			Vector<3> vision_hdg_earth = _q.conjugate(_vision_hdg);
@@ -770,15 +771,6 @@ bool AttitudeEstimatorQ::update(float dt)
 			// Project correction to body frame
 			corr += _q.conjugate_inversed(Vector<3>(0.0f, 0.0f, -mocap_hdg_err)) * _w_ext_hdg;
 		}
-	}
-
-	if (_ext_hdg_mode == 0  || !_ext_hdg_good) {
-		// Magnetometer correction
-		// Project mag field vector to global frame and extract XY component
-		Vector<3> mag_earth = _q.conjugate(_mag);
-		float mag_err = _wrap_pi(atan2f(mag_earth(1), mag_earth(0)) - _mag_decl);
-		// Project magnetometer correction to body frame
-		corr += _q.conjugate_inversed(Vector<3>(0.0f, 0.0f, -mag_err)) * _w_mag;
 	}
 
 	_q.normalize();
