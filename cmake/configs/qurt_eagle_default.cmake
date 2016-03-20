@@ -62,6 +62,7 @@ set(config_module_list
 	#
 	drivers/gps
 	drivers/uart_esc
+	drivers/simonk_esc
 	drivers/qshell/qurt
 
 	#
