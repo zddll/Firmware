@@ -182,34 +182,24 @@ int initialize_mixer(const char *mixer_filename)
 int simonk_initialize(const char *device)
 {
 
-	int fd = ::open(device, O_RDWR | O_NONBLOCK);
+	_fd = ::open(device, O_RDWR | O_NONBLOCK);
 
-	if (fd == -1) {
-		PX4_ERR("failed in open");
+	if (_fd == -1) {
+		PX4_ERR("Failed to open UART.");
 		return -1;
 	}
 
-	struct dspal_serial_open_options options;
+	struct dspal_serial_ioctl_data_rate rate;
 
-	options.bit_rate = DSPAL_SIO_BITRATE_38400; 
+	rate.bit_rate = DSPAL_SIO_BITRATE_38400;
 
-	options.tx_flow = DSPAL_SIO_FCTL_OFF;
-
-	options.rx_flow = DSPAL_SIO_FCTL_OFF;
-
-	options.rx_data_callback = nullptr;
-
-	options.tx_data_callback = nullptr;
-
-	options.is_tx_data_synchronous = false;
-
-	int ret = ::ioctl(fd, SERIAL_IOCTL_OPEN_OPTIONS, (void *)&options);
+	int ret = ioctl(_fd, SERIAL_IOCTL_SET_DATA_RATE, (void *)&rate);
 
 	if (ret != 0) {
-		PX4_ERR("Failed to setup flow control");
+		PX4_ERR("Failed to set UART bitrate.");
+		return -2;
 	}
 
-	_fd = fd;
 	return 0;
 }
 
@@ -222,10 +212,12 @@ void task_main(int argc, char *argv[])
 		PX4_ERR("failed to initialize SimonkESC");
 
 	} else {
+
+		PX4_WARN("Initialized SimonkESC");
 		// Subscribe for orb topics
 		_controls_sub = orb_subscribe(ORB_ID(actuator_controls_0)); // single group for now
 		_armed_sub    = orb_subscribe(ORB_ID(actuator_armed));
-		
+
 		// initialize publication structures
 		memset(&_outputs, 0, sizeof(_outputs));
 
@@ -241,95 +233,22 @@ void task_main(int argc, char *argv[])
 			_task_should_exit = true;
 		}
 
+		uint8_t data[MAX_MOTORS + 1];
+
 		// Main loop
 		while (!_task_should_exit) {
-			int pret = px4_poll(&fds[0], (sizeof(fds) / sizeof(fds[0])), 100);
-
-			/* timed out - periodic check for _task_should_exit */
-			if (pret == 0) {
-				continue;
+			data[0] = 0xF5; // magic
+			for (uint8_t i = 1; i <= MAX_MOTORS; i++) {
+				data[i] = 0x9B;
 			}
 
-			/* this is undesirable but not much we can do - might want to flag unhappy status */
-			if (pret < 0) {
-				PX4_WARN("poll error %d, %d", pret, errno);
-				/* sleep a bit before next try */
-				usleep(100000);
-				continue;
+			PX4_WARN("Send ESC frame");
+			int ret = ::write(_fd, &data[0], sizeof(data));
+
+			if (ret < 1) {
+				PX4_WARN("Failed sending ESC packet, ret: %d, errno: %d", ret, errno);
 			}
 
-			// Handle new actuator controls data
-			if (fds[0].revents & POLLIN) {
-				// Grab new controls data
-				orb_copy(ORB_ID(actuator_controls_0), _controls_sub, &_controls);
-				// Mix to the outputs
-				_outputs.timestamp = hrt_absolute_time();
-
-				if (_armed.armed) {
-					_outputs.noutputs = mixer->mix(&_outputs.output[0],
-								       actuator_controls_0_s::NUM_ACTUATOR_CONTROLS,
-								       NULL);
-
-					// Make sure we support only up to MAX_MOTORS motors
-					if (_outputs.noutputs > MAX_MOTORS) {
-						PX4_ERR("Unsupported motors %d, up to %d motors supported",
-							_outputs.noutputs, MAX_MOTORS);
-						continue;
-					}
-
-					// iterate actuators
-					for (unsigned i = 0; i < _outputs.noutputs; i++) {
-						// last resort: catch NaN, INF and out-of-band errors
-						if (i < _outputs.noutputs &&
-						    PX4_ISFINITE(_outputs.output[i]) &&
-						    _outputs.output[i] >= -1.0f &&
-						    _outputs.output[i] <= 1.0f) {
-							// scale for 0 -> 200 output XXX Simonk code check
-							_outputs.output[i] = 100 + (200 * _outputs.output[i]);
-
-						} else {
-							//
-							// Value is NaN, INF or out of band - set to the minimum value.
-							_outputs.output[i] = 0;
-						}
-					}
-
-				} else {
-					_outputs.noutputs = MAX_MOTORS;
-
-					for (unsigned outIdx = 0; outIdx < _outputs.noutputs; outIdx++) {
-						_outputs.output[outIdx] = 0;
-					}
-				}
-
-				uint8_t data[MAX_MOTORS + 1];
-				struct PACKED {
-					uint8_t magic = 0xF5; // Arming sync for SimonK
-					uint8_t command[MAX_MOTORS];
-				} frame;
-
-				for (uint8_t i = 0; i < MAX_MOTORS; i++) {
-					frame.command[i] = _outputs.output[i];
-				}
-				
-				::write(_fd, data, sizeof(data));
-
-				/* Publish mixed control outputs */
-				if (_outputs_pub != nullptr) {
-					orb_publish(ORB_ID(actuator_outputs), _outputs_pub, &_outputs);
-
-				} else {
-					_outputs_pub = orb_advertise(ORB_ID(actuator_outputs), &_outputs);
-				}
-			}
-
-			// Check for updates in other subscripions
-			bool updated = false;
-			orb_check(_armed_sub, &updated);
-
-			if (updated) {
-				orb_copy(ORB_ID(actuator_armed), _armed_sub, &_armed);
-			}
 
 		}
 	}
