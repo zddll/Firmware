@@ -1382,7 +1382,7 @@ void AttitudePositionEstimatorEKF::pollData()
 
 	// Get best measurement values
 	hrt_abstime curr_time = hrt_absolute_time();
-	(void)_voter_gyro.get_best(curr_time, &_gyro_main);
+	(void)_voter_gyro.get_best_measurements(curr_time, &_gyro_main);
 
 	if (_gyro_main >= 0) {
 
@@ -1411,7 +1411,7 @@ void AttitudePositionEstimatorEKF::pollData()
 		perf_count(_perf_gyro);
 	}
 
-	(void)_voter_accel.get_best(curr_time, &_accel_main);
+	(void)_voter_accel.get_best_measurements(curr_time, &_accel_main);
 
 	if (_accel_main >= 0 && (_last_accel != _sensor_combined.accelerometer_timestamp[_accel_main])) {
 
@@ -1433,7 +1433,7 @@ void AttitudePositionEstimatorEKF::pollData()
 		_last_accel = _sensor_combined.accelerometer_timestamp[_accel_main];
 	}
 
-	(void)_voter_mag.get_best(curr_time, &_mag_main);
+	(void)_voter_mag.get_best_measurements(curr_time, &_mag_main);
 
 	if (_mag_main >= 0) {
 		Vector3f mag(_sensor_combined.magnetometer_ga[_mag_main * 3 + 0], _sensor_combined.magnetometer_ga[_mag_main * 3 + 1],
