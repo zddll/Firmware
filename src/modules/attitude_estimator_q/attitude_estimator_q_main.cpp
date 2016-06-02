@@ -129,7 +129,8 @@ private:
 	int		_global_pos_sub = -1;
 	orb_advert_t	_att_pub = nullptr;
 	orb_advert_t	_ctrl_state_pub = nullptr;
-	orb_advert_t	_est_state_pub = nullptr;
+	orb_advert_t	_est_status_pub = nullptr;;
+	orb_advert_t	_imu_status_pub = nullptr;
 
 	struct {
 		param_t	w_acc;
@@ -658,7 +659,7 @@ void AttitudeEstimatorQ::task_main()
 			/* the instance count is not used here */
 			int ins_inst;
 			/* Publish to inertial sensors status topic */
-			orb_publish_auto(ORB_ID(inertial_sensor_status), &_ins_state_pub, &ins, &ins_inst, ORB_PRIO_DEFAULT);
+			orb_publish_auto(ORB_ID(inertial_sensor_status), &_imu_status_pub, &ins, &ins_inst, ORB_PRIO_DEFAULT);
 			
 		}
 
