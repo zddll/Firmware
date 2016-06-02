@@ -62,6 +62,7 @@
 #include <uORB/topics/airspeed.h>
 #include <uORB/topics/parameter_update.h>
 #include <uORB/topics/estimator_status.h>
+#include <uORB/topics/inertial_sensor_status.h>
 #include <drivers/drv_hrt.h>
 
 #include <mathlib/mathlib.h>
@@ -385,9 +386,9 @@ void AttitudeEstimatorQ::task_main()
 
 			// Get best measurement values
 			hrt_abstime curr_time = hrt_absolute_time();
-			_gyro.set(_voter_gyro.get_best(curr_time, &best_gyro));
-			_accel.set(_voter_accel.get_best(curr_time, &best_accel));
-			_mag.set(_voter_mag.get_best(curr_time, &best_mag));
+			_gyro.set(_voter_gyro.get_best_measurements(curr_time, &best_gyro));
+			_accel.set(_voter_accel.get_best_measurements(curr_time, &best_accel));
+			_mag.set(_voter_mag.get_best_measurements(curr_time, &best_mag));
 
 			if (_accel.length() < 0.01f) {
 				warnx("WARNING: degenerate accel!");
@@ -596,10 +597,6 @@ void AttitudeEstimatorQ::task_main()
 		memcpy(&att.q[0], _q.data, sizeof(att.q));
 		att.q_valid = true;
 
-		att.rate_vibration = _voter_gyro.get_vibration_factor(hrt_absolute_time());
-		att.accel_vibration = _voter_accel.get_vibration_factor(hrt_absolute_time());
-		att.mag_vibration = _voter_mag.get_vibration_factor(hrt_absolute_time());
-
 		/* the instance count is not used here */
 		int att_inst;
 		orb_publish_auto(ORB_ID(vehicle_attitude), &_att_pub, &att, &att_inst, ORB_PRIO_HIGH);
@@ -640,6 +637,29 @@ void AttitudeEstimatorQ::task_main()
 			int ctrl_inst;
 			/* publish to control state topic */
 			orb_publish_auto(ORB_ID(control_state), &_ctrl_state_pub, &ctrl_state, &ctrl_inst, ORB_PRIO_HIGH);
+		}
+		
+		{
+		
+			struct inertial_sensor_status_s ins = {};
+			
+			ins.timestamp = sensors.timestamp;
+			
+			/* Sensor IDs of currently in-use sensors */
+			ins.current_gyro_id = _voter_gyro.get_best_sensor(hrt_absolute_time());
+			ins.current_accel_id = _voter_accel.get_best_sensor(hrt_absolute_time());
+			ins.current_mag_id = _voter_mag.get_best_sensor(hrt_absolute_time());
+			
+			/* Vibration data for currently in-use sensors */
+			ins.rate_vibration = _voter_gyro.get_vibration_factor(hrt_absolute_time());
+			ins.accel_vibration = _voter_accel.get_vibration_factor(hrt_absolute_time());
+			ins.mag_vibration = _voter_mag.get_vibration_factor(hrt_absolute_time());
+			
+			/* the instance count is not used here */
+			int ins_inst;
+			/* Publish to inertial sensors status topic */
+			orb_publish_auto(ORB_ID(inertial_sensor_status), &_ins_state_pub, &ins, &ins_inst, ORB_PRIO_DEFAULT);
+			
 		}
 
 		{
