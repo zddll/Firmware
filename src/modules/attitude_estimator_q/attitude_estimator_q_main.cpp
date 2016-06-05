@@ -62,7 +62,7 @@
 #include <uORB/topics/airspeed.h>
 #include <uORB/topics/parameter_update.h>
 #include <uORB/topics/estimator_status.h>
-#include <uORB/topics/inertial_sensor_status.h>
+#include <uORB/topics/sensor_status.h>
 #include <drivers/drv_hrt.h>
 
 #include <mathlib/mathlib.h>
@@ -642,24 +642,24 @@ void AttitudeEstimatorQ::task_main()
 		
 		{
 		
-			struct inertial_sensor_status_s ins = {};
+			struct sensor_status_s status = {};
 			
-			ins.timestamp = sensors.timestamp;
+			status.timestamp = sensors.timestamp;
 			
 			/* Sensor IDs of currently in-use sensors */
-			ins.current_gyro_id = _voter_gyro.get_best_sensor(hrt_absolute_time());
-			ins.current_accel_id = _voter_accel.get_best_sensor(hrt_absolute_time());
-			ins.current_mag_id = _voter_mag.get_best_sensor(hrt_absolute_time());
+			status.gyro_id = _voter_gyro.get_best_sensor(hrt_absolute_time());
+			status.accel_id = _voter_accel.get_best_sensor(hrt_absolute_time());
+			status.mag_id = _voter_mag.get_best_sensor(hrt_absolute_time());
 			
 			/* Vibration data for currently in-use sensors */
-			ins.rate_vibration = _voter_gyro.get_vibration_factor(hrt_absolute_time());
-			ins.accel_vibration = _voter_accel.get_vibration_factor(hrt_absolute_time());
-			ins.mag_vibration = _voter_mag.get_vibration_factor(hrt_absolute_time());
+			status.rate_vibration = _voter_gyro.get_vibration_factor(hrt_absolute_time());
+			status.accel_vibration = _voter_accel.get_vibration_factor(hrt_absolute_time());
+			status.mag_vibration = _voter_mag.get_vibration_factor(hrt_absolute_time());
 			
 			/* the instance count is not used here */
-			int ins_inst;
-			/* Publish to inertial sensors status topic */
-			orb_publish_auto(ORB_ID(inertial_sensor_status), &_imu_status_pub, &ins, &ins_inst, ORB_PRIO_DEFAULT);
+			int status_inst;
+			/* Publish to sensors status topic */
+			orb_publish_auto(ORB_ID(sensor_status), &_imu_status_pub, &status, &status_inst, ORB_PRIO_DEFAULT);
 			
 		}
 
