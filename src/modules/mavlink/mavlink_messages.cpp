@@ -64,6 +64,7 @@
 #include <uORB/topics/optical_flow.h>
 #include <uORB/topics/position_setpoint_triplet.h>
 #include <uORB/topics/sensor_combined.h>
+#include <uORB/topics/sensor_status.h>
 #include <uORB/topics/tecs_status.h>
 #include <uORB/topics/telemetry_status.h>
 #include <uORB/topics/transponder_report.h>
@@ -680,6 +681,13 @@ public:
 private:
 	MavlinkOrbSubscription *_sensor_sub;
 	uint64_t _sensor_time;
+	
+	MavlinkOrbSubscription *_sensor_status_sub;
+	uint64_t _status_time;
+	
+	int _accel_id;
+	int _gyro_id;
+	int _mag_id;
 
 	uint64_t _accel_timestamp;
 	uint64_t _gyro_timestamp;
@@ -693,8 +701,8 @@ private:
 protected:
 	explicit MavlinkStreamHighresIMU(Mavlink *mavlink) : MavlinkStream(mavlink),
 		_sensor_sub(_mavlink->add_orb_subscription(ORB_ID(sensor_combined))),
-		_sensor_status_sub(_mavlink->add_orb_subscription(ORB_ID(sensor_status))),
 		_sensor_time(0),
+		_sensor_status_sub(_mavlink->add_orb_subscription(ORB_ID(sensor_status))),
 		_status_time(0),
 		_accel_id(0),
 		_gyro_id(0),
